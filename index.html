@@ -16,45 +16,38 @@
       <main>
         <div id="three"></div>
         <div id="labels"></div>
-        <div id="prevlbl" hidden></div>
         <div id="hint"></div>
+        <div id="fab">
+          <button id="b-help" class="round" aria-label="Bantuan" title="Bantuan">?</button>
+          <span class="grow"></span>
+          <button id="b-undo" class="round" aria-label="Urungkan" title="Urungkan" disabled>&#8630;</button>
+          <button id="b-redo" class="round" aria-label="Ulangi" title="Ulangi" disabled>&#8631;</button>
+        </div>
+        <div id="toast" hidden><span id="toast-t"></span><button id="toast-undo">Urungkan</button></div>
       </main>
 
       <div id="panel">
         <div class="row">
-          <button id="m-draw" class="tool active">Gambar</button>
-          <button id="m-select" class="tool">Pilih</button>
+          <button id="b-wall" class="primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"><path fill="currentColor" d="M3 5h8v5H3zM13 5h8v5h-8zM3 12h4.5v5H3zM9.5 12h5v5h-5zM16.5 12H21v5h-4.5zM3 19h8v2H3zM13 19h8v2h-8z"/></svg>Dinding
+          </button>
+          <button id="b-lock">Kunci titik</button>
           <button id="b-top">Atas</button>
           <button id="b-fit">Pas</button>
-          <button id="b-undo" disabled>Urungkan</button>
-          <button id="b-redo" disabled>Ulangi</button>
         </div>
 
-        <div id="ctx-draw" class="ctx">
-          <div class="row">
-            <button id="l-floor" class="tool active">Di lantai</button>
-            <button id="l-top" class="tool">Di atas dinding</button>
-          </div>
+        <div id="ctx-add" class="ctx">
           <div class="row fields">
-            <label>Panjang (cm)
-              <input id="d-len" type="number" inputmode="decimal" min="1" step="1" />
-            </label>
-            <label>Sudut (&deg;)
-              <input id="d-ang" type="number" inputmode="decimal" step="1" value="0" />
-            </label>
-            <label>Mode sudut
-              <select id="d-mode">
-                <option value="abs">Mutlak</option>
-                <option value="turn">Belok</option>
-              </select>
+            <label>Arah dinding baru: belok (&deg;), + kanan, &minus; kiri
+              <input id="a-turn" type="number" inputmode="decimal" step="5" value="0" />
             </label>
           </div>
           <div class="row">
-            <button id="d-add" class="primary" disabled>Tambah dinding</button>
-            <button id="d-end">Akhiri</button>
+            <button id="t-0" class="tool active">Lurus</button>
+            <button id="t-r" class="tool">Kanan 90&deg;</button>
+            <button id="t-l" class="tool">Kiri 90&deg;</button>
           </div>
-          <p id="d-status" class="note"></p>
-          <p class="note">0&deg; = timur (kanan pada tampilan Atas), 90&deg; = selatan (bawah), searah jarum jam. Mode Belok memutar dari arah dinding sebelumnya. Gambar searah jarum jam agar tebal dinding masuk ke dalam.</p>
+          <p class="note">Tanpa dinding terpilih, dinding pertama mengarah ke kanan layar. Dengan dinding terpilih, dinding baru menyambung di ujungnya.</p>
         </div>
 
         <div id="ctx-wall" class="ctx" hidden>
@@ -65,35 +58,40 @@
             <label>Tebal (cm)
               <input id="w-thick" type="number" inputmode="decimal" min="2" max="100" step="1" />
             </label>
-          </div>
-          <div class="row fields">
-            <label>Tinggi titik A (cm)
-              <input id="w-hA" type="number" inputmode="decimal" min="0" max="3000" step="5" />
-            </label>
-            <label>Tinggi titik B (cm)
-              <input id="w-hB" type="number" inputmode="decimal" min="0" max="3000" step="5" />
+            <label>Tinggi (cm)
+              <input id="w-h" type="number" inputmode="decimal" min="0" max="3000" step="5" />
             </label>
           </div>
-          <div class="row fields">
-            <label>Titik atas A: geser dari ujung (cm)
-              <input id="w-iA" type="number" inputmode="decimal" min="0" step="5" />
-            </label>
-            <label>Titik atas B: geser dari ujung (cm)
-              <input id="w-iB" type="number" inputmode="decimal" min="0" step="5" />
-            </label>
-          </div>
-          <div class="row">
-            <button id="w-tri">Bentuk segitiga</button>
-            <button id="w-rect">Bentuk persegi</button>
-          </div>
+          <details id="adv">
+            <summary>Bentuk lanjutan</summary>
+            <div class="row fields">
+              <label>Tinggi ujung awal (cm)
+                <input id="w-hA" type="number" inputmode="decimal" min="0" max="3000" step="5" />
+              </label>
+              <label>Tinggi ujung akhir (cm)
+                <input id="w-hB" type="number" inputmode="decimal" min="0" max="3000" step="5" />
+              </label>
+            </div>
+            <div class="row fields">
+              <label>Puncak awal: geser dari ujung (cm)
+                <input id="w-iA" type="number" inputmode="decimal" min="0" step="5" />
+              </label>
+              <label>Puncak akhir: geser dari ujung (cm)
+                <input id="w-iB" type="number" inputmode="decimal" min="0" step="5" />
+              </label>
+            </div>
+            <div class="row">
+              <button id="w-tri">Bentuk segitiga</button>
+              <button id="w-rect">Bentuk persegi</button>
+            </div>
+            <p class="note">Tahan titik oranye sebentar lalu seret ke atas, bawah, kiri, atau kanan. Dekatkan dua titik oranye agar menyatu menjadi puncak segitiga.</p>
+          </details>
           <p id="w-inner" class="note"></p>
-          <p class="note">Tarik titik oranye ke atas, bawah, kiri, atau kanan untuk membentuk dinding. Dekatkan satu titik oranye ke titik oranye lain agar menyatu (puncak segitiga).</p>
           <div class="row">
             <button id="w-stack" class="primary">Tambah dinding di atas</button>
             <button id="w-unstack" hidden>Lepas dari dinding bawah</button>
           </div>
-          <div class="row">
-            <button id="w-flip">Balik sisi</button>
+          <div class="danger-zone">
             <button id="w-del" class="danger">Hapus dinding</button>
           </div>
         </div>
@@ -107,7 +105,7 @@
               <input id="n-y" type="number" inputmode="decimal" step="1" />
             </label>
           </div>
-          <div class="row">
+          <div class="danger-zone">
             <button id="n-del" class="danger">Hapus titik</button>
           </div>
         </div>
@@ -115,6 +113,9 @@
         <details id="settings">
           <summary>Pengaturan</summary>
           <div class="row fields">
+            <label>Panjang dinding baru (cm)
+              <input id="s-len" type="number" inputmode="decimal" min="10" step="10" />
+            </label>
             <label>Tebal dinding baru (cm)
               <input id="s-thick" type="number" inputmode="decimal" min="2" max="100" step="1" />
             </label>
@@ -131,12 +132,34 @@
               </select>
             </label>
           </div>
-          <label class="check"><input id="s-labels" type="checkbox" /> Tampilkan ukuran di tiap dinding</label>
-          <label class="check"><input id="s-snap" type="checkbox" /> Tempel ke titik dan dinding di dekatnya</label>
+          <label class="check"><input id="s-labels" type="checkbox" /> Tampilkan ukuran dinding yang dipilih</label>
+          <label class="check"><input id="s-snap" type="checkbox" /> Magnet tempel antar dinding</label>
           <div class="row">
             <button id="s-apply">Terapkan tebal dan tinggi ke semua dinding</button>
           </div>
+          <div class="row">
+            <button id="s-backup">Simpan cadangan ke file</button>
+            <button id="s-restore">Buka cadangan</button>
+            <input id="s-file" type="file" accept=".json,application/json" hidden />
+          </div>
+          <div class="row">
+            <button id="s-sample">Muat contoh rumah kecil</button>
+            <button id="s-clear" class="danger">Hapus semua dinding</button>
+          </div>
         </details>
+      </div>
+
+      <div id="help" hidden>
+        <div class="card">
+          <h2>Cara memakai</h2>
+          <ol>
+            <li><b>Tambah dinding.</b> Ketuk tombol <b>Dinding</b>. Dinding 200 x 200 cm muncul. Ketuk lagi untuk menyambung dari ujung dinding yang dipilih.</li>
+            <li><b>Ubah ukuran.</b> Ketuk sisi dinding untuk memilihnya, lalu ubah Panjang, Tebal, dan Tinggi di panel bawah.</li>
+            <li><b>Pindahkan.</b> Tahan titik (atau dinding terpilih) sebentar sampai bergetar, lalu seret. Titik menempel seperti magnet ke titik lain.</li>
+          </ol>
+          <p class="note">Satu jari memutar kamera. Dua jari: cubit untuk zoom, geser, atau putar. Jika satu jari diam, ia menjadi poros putaran. Kunci titik mencegah titik tergeser.</p>
+          <button id="help-ok" class="primary">Mengerti</button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

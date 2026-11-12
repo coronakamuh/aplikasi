@@ -68,7 +68,7 @@ export function computeWalls(nodes, walls) {
     if (!A || !B) continue;
     const d = unit(B.x - A.x, B.y - A.y);
     if (!d) continue;
-    const sg = w.flip ? -1 : 1;
+    const sg = 1; // tebal selalu ke kanan arah gambar (tidak ada lagi balik sisi)
     const rn = rightNormal(d);
     const o = { x: rn.x * sg, y: rn.y * sg };
     const mk = (node, u) => {
@@ -114,7 +114,7 @@ export function computeWalls(nodes, walls) {
     const RB = it.eb.cornerR;
     const leftLen = Math.hypot(RB.x - LA.x, RB.y - LA.y);
     const rightLen = Math.hypot(LB.x - RA.x, LB.y - RA.y);
-    const refIsLeft = !it.w.flip;
+    const refIsLeft = true;
     const poly = [LA, RB, LB, RA];
     res.set(id, {
       poly,

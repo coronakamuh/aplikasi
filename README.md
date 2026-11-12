@@ -4,21 +4,20 @@ Aplikasi Android untuk merancang denah bangunan langsung di tampilan 3D. Semua u
 
 ## Cara kerja
 
-- Dinding dibuat dari **titik sudut** yang dihubungkan, jadi bentuknya bebas (segitiga, L, segi banyak, miring), tidak harus persegi.
-- Pertemuan antar dinding **otomatis menyatu** (sudut dipotong rapi). Menyentuh bagian tengah dinding lain membuat sambungan T.
-- Garis yang digambar adalah **sisi luar** dinding. Tebal tumbuh ke **kanan** arah gambar, sehingga menggambar **searah jarum jam** membuat tebal masuk ke dalam. Tombol **Balik sisi** membalik per dinding.
+- Dinding dibuat dari **titik sudut** yang dihubungkan, jadi bentuknya bebas (segitiga, L, segi banyak, miring). Pertemuan antar dinding **otomatis menyatu** dengan potongan diagonal (miter). Menempel ke tengah dinding lain membuat sambungan T.
+- Garis yang digambar adalah **sisi luar** dinding. Tebal tumbuh ke **kanan** arah gambar, jadi membuat dinding searah jarum jam menaruh tebal di dalam. Tidak ada tombol balik sisi.
 
-## Menggambar
+## Memakai
 
-- Mode **Gambar**: ketuk lantai untuk titik awal, lalu ketuk titik berikutnya. Titik menempel ke grid (bawaan 5 cm), ke titik lain, dan ke dinding lain.
-- Untuk ukuran presisi, ketik **Panjang (cm)** dan **Sudut** lalu tekan **Tambah dinding**. Sudut 0&deg; = timur, 90&deg; = selatan (searah jarum jam). Mode **Belok** memutar dari arah dinding sebelumnya.
-- Mode **Pilih**: ketuk dinding untuk mengubah panjang, tebal, dan tinggi; ketuk titik untuk mengubah posisi X/Y; seret titik untuk memindahkannya.
-- Tiap dinding punya 2 titik bawah dan 2 titik atas: **Tinggi titik A** dan **Tinggi titik B** bisa berbeda (puncak miring). Di mode Pilih, titik oranye selalu tampil di semua dinding (dengan angka tinggi). Tarik ke atas, bawah, kiri, atau kanan pada bidang dinding; dekatkan dua titik oranye agar menyatu menjadi puncak segitiga. Tombol **Bentuk segitiga** / **Bentuk persegi** dan isian **Geser titik atas A/B** tersedia untuk ukuran presisi.
-- **Tambah dinding di atas**: dinding baru berdiri otomatis di puncak dinding yang dipilih (mengikuti puncak miringnya) dan bisa diatur sendiri. Bisa bertingkat. Atau pilih **Di atas dinding** di mode Gambar, ketuk titik oranye atau puncak dinding, lalu gambar dinding baru di ketinggian itu (**Akhiri** untuk kembali ke lantai).
-- Dinding berbahan bata tipis: tekstur bata 22 x 7 cm bernuansa lembut, hanya di sisi samping dinding.
-- Titik kecil bergaris. Tempel ke titik/dinding lain berjarak dekat dan bisa dimatikan di Pengaturan.
-- Tombol **Atas** untuk pandangan dari atas, **Pas** untuk menampilkan seluruh denah, **Urungkan** dan **Ulangi** untuk membatalkan dan mengulang.
-- Satu jari memutar kamera; dua jari menggeser, zoom (cubit), dan memutar bangunan searah putaran jari.
+- Tombol **Dinding** menaruh dinding 200 x 200 cm (ubah di Pengaturan). Tanpa dinding terpilih, dinding pertama mengarah ke kanan layar. Dengan dinding terpilih, dinding baru menyambung di ujungnya. Arah diatur dengan **Lurus / Kanan 90 / Kiri 90** atau sudut belok sendiri.
+- Ketuk **sisi dinding** untuk memilihnya, lalu ubah Panjang, Tebal, Tinggi. Ukuran hanya tampil di dinding yang dipilih. **Bentuk lanjutan** berisi tinggi tiap ujung, geser puncak, dan tombol segitiga/persegi.
+- **Tahan sebentar** titik biru (sudut), titik oranye (puncak), atau dinding terpilih sampai bergetar, baru bisa diseret. Menyeret dinding menggeser seluruh dinding bersama dinding yang tersambung. **Kunci titik** mematikan semua geseran titik.
+- **Magnet**: titik menempel sudut ke sudut (hijau) dan lepas dengan geseran kecil. Bisa dimatikan di Pengaturan. Dua titik oranye bisa disatukan menjadi puncak segitiga.
+- Titik yang tertutup dinding disembunyikan; putar kamera sampai terlihat.
+- **Tambah dinding di atas**: dinding baru berdiri di puncak dinding terpilih, mengikuti bentuk puncaknya.
+- Satu jari memutar kamera. Dua jari: cubit untuk zoom, geser, atau putar (bangunan ikut searah jari). Jika satu jari diam, jari itu menjadi poros putaran.
+- **Urungkan** dan **Ulangi** ada di pojok kanan bawah peta, **?** untuk panduan, **Atas** dan **Pas** untuk pandangan kamera.
+- Pengaturan: ukuran dinding baru, grid, cadangan ke file, contoh rumah kecil, hapus semua.
 
 ## Membuat APK
 
