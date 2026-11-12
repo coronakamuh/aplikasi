@@ -60,11 +60,21 @@
             <label>Tebal (cm)
               <input id="w-thick" type="number" inputmode="decimal" min="2" max="100" step="1" />
             </label>
-            <label>Tinggi (cm)
-              <input id="w-height" type="number" inputmode="decimal" min="10" max="3000" step="10" />
+          </div>
+          <div class="row fields">
+            <label>Tinggi titik A (cm)
+              <input id="w-hA" type="number" inputmode="decimal" min="0" max="3000" step="5" />
+            </label>
+            <label>Tinggi titik B (cm)
+              <input id="w-hB" type="number" inputmode="decimal" min="0" max="3000" step="5" />
             </label>
           </div>
           <p id="w-inner" class="note"></p>
+          <p class="note">Tarik titik oranye di puncak dinding untuk mengubah tinggi tiap ujung (puncak miring).</p>
+          <div class="row">
+            <button id="w-stack" class="primary">Tambah dinding di atas</button>
+            <button id="w-unstack" hidden>Lepas dari dinding bawah</button>
+          </div>
           <div class="row">
             <button id="w-flip">Balik sisi</button>
             <button id="w-del" class="danger">Hapus dinding</button>
@@ -105,6 +115,7 @@
             </label>
           </div>
           <label class="check"><input id="s-labels" type="checkbox" /> Tampilkan ukuran di tiap dinding</label>
+          <label class="check"><input id="s-snap" type="checkbox" /> Tempel ke titik dan dinding di dekatnya</label>
           <div class="row">
             <button id="s-apply">Terapkan tebal dan tinggi ke semua dinding</button>
           </div>

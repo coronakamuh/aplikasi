@@ -13,6 +13,10 @@ Aplikasi Android untuk merancang denah bangunan langsung di tampilan 3D. Semua u
 - Mode **Gambar**: ketuk lantai untuk titik awal, lalu ketuk titik berikutnya. Titik menempel ke grid (bawaan 5 cm), ke titik lain, dan ke dinding lain.
 - Untuk ukuran presisi, ketik **Panjang (cm)** dan **Sudut** lalu tekan **Tambah dinding**. Sudut 0&deg; = timur, 90&deg; = selatan (searah jarum jam). Mode **Belok** memutar dari arah dinding sebelumnya.
 - Mode **Pilih**: ketuk dinding untuk mengubah panjang, tebal, dan tinggi; ketuk titik untuk mengubah posisi X/Y; seret titik untuk memindahkannya.
+- Tiap dinding punya 2 titik bawah dan 2 titik atas: **Tinggi titik A** dan **Tinggi titik B** bisa berbeda (puncak miring). Di mode Pilih, tarik titik oranye di puncak dinding untuk mengubahnya.
+- **Tambah dinding di atas**: dinding baru berdiri otomatis di puncak dinding yang dipilih (mengikuti puncak miringnya) dan bisa diatur sendiri. Bisa bertingkat.
+- Dinding berbahan bata tipis: tekstur bata 22 x 7 cm bernuansa lembut, hanya di sisi samping dinding.
+- Titik kecil bergaris. Tempel ke titik/dinding lain berjarak dekat dan bisa dimatikan di Pengaturan.
 - Tombol **Atas** untuk pandangan dari atas, **Pas** untuk menampilkan seluruh denah, **Urungkan** untuk membatalkan.
 - Satu jari memutar kamera, dua jari menggeser dan zoom.
 
