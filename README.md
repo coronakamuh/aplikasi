@@ -5,7 +5,7 @@ Aplikasi Android untuk merancang denah bangunan: gambar dinding di tampilan 2D, 
 ## Fitur
 
 - Gambar dinding dengan ketukan (titik demi titik), otomatis menempel ke grid 25 cm dan ke ujung dinding lain
-- Panjang tiap dinding tampil di denah, total panjang tampil di header
+- Semua ukuran dalam cm: panjang tiap dinding tampil di denah, total panjang tampil di header
 - Geser dan cubit untuk zoom di denah
 - Hapus dinding, urungkan, kosongkan
 - Atur tinggi dan tebal dinding

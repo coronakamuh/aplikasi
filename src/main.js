@@ -5,7 +5,7 @@ import './style.css';
 const KEY = 'rencana-bangunan-3d:v1';
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-const fmt = (n) => n.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const cm = (m) => Math.round(m * 100).toLocaleString('id-ID') + ' cm';
 
 /* ---------- Data ---------- */
 function load() {
@@ -158,7 +158,7 @@ function draw() {
   for (const k of state.walls) {
     const len = segLen(k);
     if (len * s < 44) continue;
-    label(fmt(len) + ' m', ((k.x1 + k.x2) / 2) * s + view.x, ((k.y1 + k.y2) / 2) * s + view.y - 14);
+    label(cm(len), ((k.x1 + k.x2) / 2) * s + view.x, ((k.y1 + k.y2) / 2) * s + view.y - 14);
   }
 
   // garis sementara
@@ -178,7 +178,7 @@ function draw() {
       ctx.stroke();
       ctx.setLineDash([]);
       const len = Math.hypot(cursor.x - start.x, cursor.y - start.y);
-      if (len > 0.05) label(fmt(len) + ' m', (sx + ex) / 2, (sy + ey) / 2 - 14);
+      if (len > 0.05) label(cm(len), (sx + ex) / 2, (sy + ey) / 2 - 14);
     }
     ctx.fillStyle = '#1f5fbf';
     ctx.beginPath();
@@ -190,7 +190,7 @@ function draw() {
 function updateInfo() {
   const n = state.walls.length;
   const total = state.walls.reduce((a, k) => a + segLen(k), 0);
-  $('info').textContent = n ? `${n} dinding · ${fmt(total)} m` : 'Belum ada dinding';
+  $('info').textContent = n ? `${n} dinding · ${cm(total)}` : 'Belum ada dinding';
 }
 
 function updateHint() {
@@ -493,12 +493,12 @@ $('btn-clear').addEventListener('click', () => {
   draw();
 });
 
-$('in-height').value = state.height;
+$('in-height').value = Math.round(state.height * 100);
 $('in-thick').value = state.thickness;
 $('in-height').addEventListener('change', (e) => {
   const v = parseFloat(e.target.value);
-  state.height = Number.isFinite(v) ? clamp(v, 1, 20) : 3;
-  e.target.value = state.height;
+  state.height = Number.isFinite(v) ? clamp(v, 100, 2000) / 100 : 3;
+  e.target.value = Math.round(state.height * 100);
   save();
 });
 $('in-thick').addEventListener('change', (e) => {
