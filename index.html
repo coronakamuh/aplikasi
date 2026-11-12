@@ -14,39 +14,102 @@
       </header>
 
       <main>
-        <section id="view-plan" class="view active">
-          <canvas id="plan"></canvas>
-          <div id="hint"></div>
-        </section>
-        <section id="view-3d" class="view">
-          <div id="three"></div>
-          <div id="empty3d">Belum ada dinding. Gambar denah dulu di tab Denah.</div>
-        </section>
+        <div id="three"></div>
+        <div id="labels"></div>
+        <div id="prevlbl" hidden></div>
+        <div id="hint"></div>
       </main>
 
       <div id="panel">
         <div class="row">
-          <button id="btn-wall" class="tool active">Dinding</button>
-          <button id="btn-erase" class="tool">Hapus</button>
-          <button id="btn-finish">Akhiri</button>
-          <button id="btn-undo">Urungkan</button>
-          <button id="btn-fit">Pas</button>
-          <button id="btn-clear" class="danger">Kosongkan</button>
+          <button id="m-draw" class="tool active">Gambar</button>
+          <button id="m-select" class="tool">Pilih</button>
+          <button id="b-top">Atas</button>
+          <button id="b-fit">Pas</button>
+          <button id="b-undo">Urungkan</button>
         </div>
-        <div class="row settings">
-          <label>Tinggi dinding (cm)
-            <input id="in-height" type="number" inputmode="numeric" min="100" max="2000" step="10" />
-          </label>
-          <label>Tebal dinding (cm)
-            <input id="in-thick" type="number" inputmode="numeric" min="5" max="60" step="1" />
-          </label>
-        </div>
-      </div>
 
-      <nav>
-        <button id="tab-plan" class="tab active">Denah</button>
-        <button id="tab-3d" class="tab">Tampilan 3D</button>
-      </nav>
+        <div id="ctx-draw" class="ctx">
+          <div class="row fields">
+            <label>Panjang (cm)
+              <input id="d-len" type="number" inputmode="decimal" min="1" step="1" />
+            </label>
+            <label>Sudut (&deg;)
+              <input id="d-ang" type="number" inputmode="decimal" step="1" value="0" />
+            </label>
+            <label>Mode sudut
+              <select id="d-mode">
+                <option value="abs">Mutlak</option>
+                <option value="turn">Belok</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <button id="d-add" class="primary" disabled>Tambah dinding</button>
+            <button id="d-end">Akhiri</button>
+          </div>
+          <p id="d-status" class="note"></p>
+          <p class="note">0&deg; = timur (kanan pada tampilan Atas), 90&deg; = selatan (bawah), searah jarum jam. Mode Belok memutar dari arah dinding sebelumnya. Gambar searah jarum jam agar tebal dinding masuk ke dalam.</p>
+        </div>
+
+        <div id="ctx-wall" class="ctx" hidden>
+          <div class="row fields">
+            <label>Panjang (cm)
+              <input id="w-len" type="number" inputmode="decimal" min="1" step="1" />
+            </label>
+            <label>Tebal (cm)
+              <input id="w-thick" type="number" inputmode="decimal" min="2" max="100" step="1" />
+            </label>
+            <label>Tinggi (cm)
+              <input id="w-height" type="number" inputmode="decimal" min="10" max="3000" step="10" />
+            </label>
+          </div>
+          <p id="w-inner" class="note"></p>
+          <div class="row">
+            <button id="w-flip">Balik sisi</button>
+            <button id="w-del" class="danger">Hapus dinding</button>
+          </div>
+        </div>
+
+        <div id="ctx-node" class="ctx" hidden>
+          <div class="row fields">
+            <label>Posisi X (cm)
+              <input id="n-x" type="number" inputmode="decimal" step="1" />
+            </label>
+            <label>Posisi Y (cm)
+              <input id="n-y" type="number" inputmode="decimal" step="1" />
+            </label>
+          </div>
+          <div class="row">
+            <button id="n-del" class="danger">Hapus titik</button>
+          </div>
+        </div>
+
+        <details id="settings">
+          <summary>Pengaturan</summary>
+          <div class="row fields">
+            <label>Tebal dinding baru (cm)
+              <input id="s-thick" type="number" inputmode="decimal" min="2" max="100" step="1" />
+            </label>
+            <label>Tinggi dinding baru (cm)
+              <input id="s-height" type="number" inputmode="decimal" min="10" max="3000" step="10" />
+            </label>
+            <label>Grid tempel (cm)
+              <select id="s-grid">
+                <option value="1">1</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+          </div>
+          <label class="check"><input id="s-labels" type="checkbox" /> Tampilkan ukuran di tiap dinding</label>
+          <div class="row">
+            <button id="s-apply">Terapkan tebal dan tinggi ke semua dinding</button>
+          </div>
+        </details>
+      </div>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

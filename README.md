@@ -1,16 +1,20 @@
 # Rencana Bangunan 3D
 
-Aplikasi Android untuk merancang denah bangunan: gambar dinding di tampilan 2D, lalu lihat hasilnya dalam 3D yang bisa diputar dan di-zoom.
+Aplikasi Android untuk merancang denah bangunan langsung di tampilan 3D. Semua ukuran dalam cm. Data tersimpan di perangkat.
 
-## Fitur
+## Cara kerja
 
-- Gambar dinding dengan ketukan (titik demi titik), otomatis menempel ke grid 25 cm dan ke ujung dinding lain
-- Semua ukuran dalam cm: panjang tiap dinding tampil di denah, total panjang tampil di header
-- Geser dan cubit untuk zoom di denah
-- Hapus dinding, urungkan, kosongkan
-- Atur tinggi dan tebal dinding
-- Tampilan 3D (putar, geser, zoom)
-- Data tersimpan otomatis di perangkat
+- Dinding dibuat dari **titik sudut** yang dihubungkan, jadi bentuknya bebas (segitiga, L, segi banyak, miring), tidak harus persegi.
+- Pertemuan antar dinding **otomatis menyatu** (sudut dipotong rapi). Menyentuh bagian tengah dinding lain membuat sambungan T.
+- Garis yang digambar adalah **sisi luar** dinding. Tebal tumbuh ke **kanan** arah gambar, sehingga menggambar **searah jarum jam** membuat tebal masuk ke dalam. Tombol **Balik sisi** membalik per dinding.
+
+## Menggambar
+
+- Mode **Gambar**: ketuk lantai untuk titik awal, lalu ketuk titik berikutnya. Titik menempel ke grid (bawaan 5 cm), ke titik lain, dan ke dinding lain.
+- Untuk ukuran presisi, ketik **Panjang (cm)** dan **Sudut** lalu tekan **Tambah dinding**. Sudut 0&deg; = timur, 90&deg; = selatan (searah jarum jam). Mode **Belok** memutar dari arah dinding sebelumnya.
+- Mode **Pilih**: ketuk dinding untuk mengubah panjang, tebal, dan tinggi; ketuk titik untuk mengubah posisi X/Y; seret titik untuk memindahkannya.
+- Tombol **Atas** untuk pandangan dari atas, **Pas** untuk menampilkan seluruh denah, **Urungkan** untuk membatalkan.
+- Satu jari memutar kamera, dua jari menggeser dan zoom.
 
 ## Membuat APK
 
@@ -24,3 +28,5 @@ Aplikasi Android untuk merancang denah bangunan: gambar dinding di tampilan 2D, 
 npm install
 npm run dev
 ```
+
+Logika geometri dinding ada di `src/geometry.js` (murni, tanpa DOM).

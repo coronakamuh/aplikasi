@@ -20,28 +20,32 @@ header { background: var(--navy); color: #fff; padding: 12px 16px; display: flex
 header h1 { margin: 0; font-size: 17px; font-weight: 600; }
 #info { font-size: 12px; opacity: 0.8; white-space: nowrap; }
 
-main { flex: 1; position: relative; min-height: 0; }
-.view { position: absolute; inset: 0; display: none; }
-.view.active { display: block; }
-
-#plan { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; background: #fff; }
+main { flex: 1; position: relative; min-height: 0; overflow: hidden; }
 #three { position: absolute; inset: 0; }
 #three canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 
-#hint { position: absolute; left: 12px; right: 12px; top: 10px; padding: 8px 12px; background: rgba(18, 38, 63, 0.88); color: #fff; font-size: 13px; border-radius: 10px; pointer-events: none; }
-#empty3d { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); text-align: center; color: var(--muted); font-size: 14px; pointer-events: none; }
+.lbl, #prevlbl { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; font-size: 11px; font-weight: 600; line-height: 1.2; padding: 2px 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.92); border: 1px solid #cfd6e0; color: var(--navy); white-space: nowrap; }
+.lbl.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+#prevlbl { background: #f59e0b; border-color: #f59e0b; color: #1b1300; }
 
-#panel { background: var(--card); border-top: 1px solid var(--line); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+#hint { position: absolute; left: 10px; right: 10px; top: 8px; padding: 7px 11px; background: rgba(18, 38, 63, 0.86); color: #fff; font-size: 12px; line-height: 1.35; border-radius: 10px; pointer-events: none; }
+
+#panel { background: var(--card); border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; max-height: 46dvh; overflow-y: auto; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ctx { display: flex; flex-direction: column; gap: 8px; }
 
 button { font: inherit; font-size: 13px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
 button:active { background: #e8ecf2; }
-button.tool.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: 0.45; }
+button.tool.active, button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:disabled { background: var(--accent); }
 button.danger { color: var(--danger); }
 
-.settings label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1; min-width: 130px; }
-.settings input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: #fff; width: 100%; }
+.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1; min-width: 96px; }
+.fields input, .fields select { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); background: #fff; width: 100%; }
+.note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 8px 0; }
 
-nav { display: flex; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-.tab { flex: 1; border: 0; border-radius: 0; padding: 14px 0; font-size: 14px; font-weight: 500; color: var(--muted); background: var(--card); }
-.tab.active { color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
+details { border-top: 1px solid var(--line); padding-top: 8px; }
+summary { font-size: 13px; color: var(--muted); padding: 4px 0 8px; }
