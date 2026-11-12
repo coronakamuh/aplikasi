@@ -119,6 +119,7 @@ export function computeWalls(nodes, walls) {
     res.set(id, {
       poly,
       t: poly.map((p) => ((p.x - it.A.x) * it.d.x + (p.y - it.A.y) * it.d.y) / it.d.l),
+      dir: { x: it.d.x, y: it.d.y },
       length: it.d.l,
       outerLen: refIsLeft ? leftLen : rightLen,
       innerLen: refIsLeft ? rightLen : leftLen,
@@ -131,10 +132,24 @@ export function computeWalls(nodes, walls) {
 const finiteOr = (v, d) => (Number.isFinite(v) ? v : d);
 
 /**
+ * Tinggi permukaan atas dinding (di atas dasarnya) pada jarak s dari titik A.
+ * e = { hA, hB, iA, iB, L }. iA/iB = jarak titik atas A/B dari ujung dinding masing-masing.
+ * Dengan iA = iB = 0 dinding berbentuk persegi panjang (puncak lurus/miring), dengan iA > 0
+ * ujung dinding menjadi miring ke puncak, dan iA + iB = L membentuk segitiga.
+ */
+export function wallProfileHeight(e, s) {
+  if (e.iA > 0 && s <= e.iA) return e.hA * (s / e.iA);
+  const sb = e.L - e.iB;
+  if (e.iB > 0 && s >= sb) return e.hB * ((e.L - s) / e.iB);
+  const span = sb - e.iA;
+  return span > 1e-9 ? e.hA + (e.hB - e.hA) * ((s - e.iA) / span) : e.hA;
+}
+
+/**
  * Ketinggian tiap dinding. Tinggi hA/hB diukur dari dasar dinding itu sendiri.
  * Dinding bertumpuk (w.on = id dinding bawah) berdiri di puncak dinding bawah,
- * mengikuti kemiringan puncaknya.
- * Hasil: Map idDinding -> { baseA, baseB, topA, topB, hA, hB }  (nilai absolut dari lantai)
+ * mengikuti bentuk puncaknya (termasuk miring atau segitiga).
+ * Hasil: Map idDinding -> { baseA, baseB, topA, topB, hA, hB, iA, iB, L }  (nilai absolut dari lantai)
  */
 export function wallElevations(nodes, walls) {
   const nm = new Map(nodes.map((n) => [n.id, n]));
@@ -143,6 +158,14 @@ export function wallElevations(nodes, walls) {
 
   const calc = (w, depth) => {
     if (memo.has(w.id)) return memo.get(w.id);
+    const A = nm.get(w.a);
+    const B = nm.get(w.b);
+    const L = A && B ? Math.hypot(B.x - A.x, B.y - A.y) : 0;
+    const hA = finiteOr(w.hA, finiteOr(w.h, 300));
+    const hB = finiteOr(w.hB, finiteOr(w.h, 300));
+    const iA = Math.min(Math.max(0, finiteOr(w.iA, 0)), L);
+    const iB = Math.min(Math.max(0, finiteOr(w.iB, 0)), L - iA);
+
     let baseA = 0;
     let baseB = 0;
     if (w.on != null && depth < 12) {
@@ -155,15 +178,14 @@ export function wallElevations(nodes, walls) {
           const n = nm.get(nid);
           if (!n) return 0;
           const pr = projectOnSegment(n, PA, PB);
-          return pe.topA + (pe.topB - pe.topA) * pr.t;
+          return pe.baseA + (pe.baseB - pe.baseA) * pr.t + wallProfileHeight(pe, pr.t * pe.L);
         };
         baseA = at(w.a);
         baseB = at(w.b);
       }
     }
-    const hA = finiteOr(w.hA, finiteOr(w.h, 300));
-    const hB = finiteOr(w.hB, finiteOr(w.h, 300));
-    const r = { baseA, baseB, topA: baseA + hA, topB: baseB + hB, hA, hB };
+    const baseAt = (s) => (L > 0 ? baseA + ((baseB - baseA) * s) / L : baseA);
+    const r = { baseA, baseB, hA, hB, iA, iB, L, topA: baseAt(iA) + hA, topB: baseAt(L - iB) + hB };
     memo.set(w.id, r);
     return r;
   };
@@ -174,11 +196,12 @@ export function wallElevations(nodes, walls) {
 }
 
 /**
- * Data segitiga prisma dinding. poly 4 titik, bots/tops = tinggi dasar/puncak tiap sudut.
+ * Data segitiga prisma dinding. poly = 4 sudut dasar (denah), bots = tinggi dasar tiap sudut,
+ * topPoly = 4 sudut puncak (denah; boleh bergeser dari dasar), tops = tinggi puncak tiap sudut.
  * Plan (x,y) -> three (x, tinggi, y). 12 titik pertama = tutup atas/bawah (grup 0),
  * 24 titik berikutnya = sisi samping (grup 1, diberi UV untuk tekstur bata).
  */
-export function prismData(poly, bots, tops) {
+export function prismData(poly, bots, tops, topPoly = poly) {
   const pos = [];
   const uv = [];
   const us = [0];
@@ -187,30 +210,25 @@ export function prismData(poly, bots, tops) {
     const b = poly[(i + 1) % 4];
     us.push(us[i] + Math.hypot(b.x - a.x, b.y - a.y));
   }
-  const v = (i, y, u) => {
-    pos.push(poly[i].x, y, poly[i].y);
-    uv.push(u / BRICK_U, y / BRICK_V);
+  const vb = (i, u) => {
+    pos.push(poly[i].x, bots[i], poly[i].y);
+    uv.push(u / BRICK_U, bots[i] / BRICK_V);
   };
-  const tri = (a, ay, b, by, c, cy) => {
-    v(a, ay, 0);
-    v(b, by, 0);
-    v(c, cy, 0);
+  const vt = (i, u) => {
+    pos.push(topPoly[i].x, tops[i], topPoly[i].y);
+    uv.push(u / BRICK_U, tops[i] / BRICK_V);
   };
-  tri(0, tops[0], 1, tops[1], 2, tops[2]);
-  tri(0, tops[0], 2, tops[2], 3, tops[3]);
-  tri(0, bots[0], 2, bots[2], 1, bots[1]);
-  tri(0, bots[0], 3, bots[3], 2, bots[2]);
+  vt(0, 0); vt(1, 0); vt(2, 0);
+  vt(0, 0); vt(2, 0); vt(3, 0);
+  vb(0, 0); vb(2, 0); vb(1, 0);
+  vb(0, 0); vb(3, 0); vb(2, 0);
   for (let i = 0; i < 4; i++) {
     const a = i;
     const b = (i + 1) % 4;
     const ua = us[i];
     const ub = us[i + 1];
-    v(a, bots[a], ua);
-    v(b, bots[b], ub);
-    v(b, tops[b], ub);
-    v(a, bots[a], ua);
-    v(b, tops[b], ub);
-    v(a, tops[a], ua);
+    vb(a, ua); vb(b, ub); vt(b, ub);
+    vb(a, ua); vt(b, ub); vt(a, ua);
   }
   return { positions: new Float32Array(pos), uvs: new Float32Array(uv), planeVerts: 12, sideVerts: 24 };
 }

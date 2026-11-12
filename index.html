@@ -26,10 +26,15 @@
           <button id="m-select" class="tool">Pilih</button>
           <button id="b-top">Atas</button>
           <button id="b-fit">Pas</button>
-          <button id="b-undo">Urungkan</button>
+          <button id="b-undo" disabled>Urungkan</button>
+          <button id="b-redo" disabled>Ulangi</button>
         </div>
 
         <div id="ctx-draw" class="ctx">
+          <div class="row">
+            <button id="l-floor" class="tool active">Di lantai</button>
+            <button id="l-top" class="tool">Di atas dinding</button>
+          </div>
           <div class="row fields">
             <label>Panjang (cm)
               <input id="d-len" type="number" inputmode="decimal" min="1" step="1" />
@@ -69,8 +74,20 @@
               <input id="w-hB" type="number" inputmode="decimal" min="0" max="3000" step="5" />
             </label>
           </div>
+          <div class="row fields">
+            <label>Titik atas A: geser dari ujung (cm)
+              <input id="w-iA" type="number" inputmode="decimal" min="0" step="5" />
+            </label>
+            <label>Titik atas B: geser dari ujung (cm)
+              <input id="w-iB" type="number" inputmode="decimal" min="0" step="5" />
+            </label>
+          </div>
+          <div class="row">
+            <button id="w-tri">Bentuk segitiga</button>
+            <button id="w-rect">Bentuk persegi</button>
+          </div>
           <p id="w-inner" class="note"></p>
-          <p class="note">Tarik titik oranye di puncak dinding untuk mengubah tinggi tiap ujung (puncak miring).</p>
+          <p class="note">Tarik titik oranye ke atas, bawah, kiri, atau kanan untuk membentuk dinding. Dekatkan satu titik oranye ke titik oranye lain agar menyatu (puncak segitiga).</p>
           <div class="row">
             <button id="w-stack" class="primary">Tambah dinding di atas</button>
             <button id="w-unstack" hidden>Lepas dari dinding bawah</button>

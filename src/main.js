@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { computeWalls, prismData, wallElevations, projectOnSegment, round2 } from './geometry.js';
+import { computeWalls, prismData, wallElevations, wallProfileHeight, projectOnSegment, round2 } from './geometry.js';
 import './style.css';
 
 const KEY = 'rencana-bangunan-3d:v2';
@@ -14,6 +14,7 @@ const defaultCfg = () => ({ defT: 15, defH: 300, grid: 5, labels: true, snap: tr
 let state = { nodes: [], walls: [], next: 1 };
 let cfg = defaultCfg();
 const hist = [];
+const redoStack = [];
 
 function loadData() {
   try {
@@ -26,7 +27,14 @@ function loadData() {
       .map((w) => {
         const h = Number.isFinite(w.h) ? w.h : 300;
         const { h: _old, ...rest } = w;
-        return { ...rest, hA: Number.isFinite(w.hA) ? w.hA : h, hB: Number.isFinite(w.hB) ? w.hB : h, on: w.on ?? null };
+        return {
+          ...rest,
+          hA: Number.isFinite(w.hA) ? w.hA : h,
+          hB: Number.isFinite(w.hB) ? w.hB : h,
+          iA: Number.isFinite(w.iA) ? w.iA : 0,
+          iB: Number.isFinite(w.iB) ? w.iB : 0,
+          on: w.on ?? null,
+        };
       });
     const maxId = Math.max(0, ...nodes.map((n) => n.id), ...walls.map((w) => w.id));
     state = { nodes, walls, next: Math.max(Number.isFinite(d.next) ? d.next : 1, maxId + 1) };
@@ -53,7 +61,7 @@ function addNode(x, y) {
   return n.id;
 }
 function addWall(a, b, on = null) {
-  const w = { id: state.next++, a, b, t: cfg.defT, hA: cfg.defH, hB: cfg.defH, on, flip: false };
+  const w = { id: state.next++, a, b, t: cfg.defT, hA: cfg.defH, hB: cfg.defH, iA: 0, iB: 0, on, flip: false };
   state.walls.push(w);
   return w.id;
 }
@@ -62,11 +70,17 @@ function splitWall(wid, x, y) {
   const A = nodeById(w.a);
   const B = nodeById(w.b);
   const nid = addNode(x, y);
+  const L = Math.hypot(B.x - A.x, B.y - A.y);
   const pr = projectOnSegment({ x, y }, A, B);
-  const hMid = round2(w.hA + (w.hB - w.hA) * pr.t);
-  const w2 = { ...w, id: state.next++, a: nid, hA: hMid };
+  const s = pr.t * L;
+  const iA = Math.min(w.iA || 0, L);
+  const iB = Math.min(w.iB || 0, L - iA);
+  const hMid = round2(wallProfileHeight({ hA: w.hA, hB: w.hB, iA, iB, L }, s));
+  const w2 = { ...w, id: state.next++, a: nid, hA: hMid, iA: 0, iB: round2(Math.max(0, Math.min(iB, L - s))) };
   w.b = nid;
   w.hB = hMid;
+  w.iB = 0;
+  w.iA = round2(Math.min(iA, s));
   state.walls.push(w2);
   return nid;
 }
@@ -81,8 +95,11 @@ function cleanOrphans() {
 
 /* ---------- Status antarmuka ---------- */
 let mode = 'draw'; // 'draw' | 'select'
+let level = 'floor'; // 'floor' | 'top' (menggambar di lantai atau di atas dinding)
 let start = null; // id titik awal saat menggambar
 let lastDir = null; // arah (radian) dinding terakhir pada rantai
+let drawY = 0; // ketinggian bidang gambar rantai saat ini
+let drawOn = null; // dinding tempat rantai saat ini berdiri
 let sel = null; // { type: 'wall' | 'node', id }
 let geo = new Map();
 let elev = new Map();
@@ -91,24 +108,45 @@ let prev = null; // { mid:{x,y,z}, text }
 
 const selWall = () => (sel && sel.type === 'wall' ? wallById(sel.id) : null);
 const selNode = () => (sel && sel.type === 'node' ? nodeById(sel.id) : null);
+const elevOfNode = (id) => (nodeElev.has(id) ? nodeElev.get(id) : id === start ? drawY : 0);
+
+function resetChain() {
+  start = null;
+  lastDir = null;
+  drawY = 0;
+  drawOn = null;
+}
+
+function pushHist(before) {
+  hist.push(before);
+  if (hist.length > 80) hist.shift();
+  redoStack.length = 0;
+}
 
 function commit(fn) {
   const before = JSON.stringify(state);
   fn();
   cleanOrphans();
-  if (JSON.stringify(state) !== before) {
-    hist.push(before);
-    if (hist.length > 80) hist.shift();
-  }
+  if (JSON.stringify(state) !== before) pushHist(before);
   refresh();
 }
 
 function undo() {
-  const prevState = hist.pop();
-  if (!prevState) return;
-  state = JSON.parse(prevState);
-  start = null;
-  lastDir = null;
+  const p = hist.pop();
+  if (!p) return;
+  redoStack.push(JSON.stringify(state));
+  state = JSON.parse(p);
+  resetChain();
+  sel = null;
+  refresh();
+}
+
+function redo() {
+  const n = redoStack.pop();
+  if (!n) return;
+  hist.push(JSON.stringify(state));
+  state = JSON.parse(n);
+  resetChain();
   sel = null;
   refresh();
 }
@@ -200,7 +238,7 @@ const handleGroup = new THREE.Group();
 scene.add(wallGroup, markerGroup, handleGroup);
 const wallMeshes = [];
 const markers = [];
-const topHandles = [];
+const topHandles = []; // { end, m, wid, px, py, top }
 
 const previewGeo = new THREE.BufferGeometry();
 previewGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
@@ -232,14 +270,17 @@ function rebuildScene() {
     const e = elev.get(w.id);
     if (!g || !e) continue;
     const isSel = sel && sel.type === 'wall' && sel.id === w.id;
+    const d = g.dir;
     const bots = g.t.map((t) => e.baseA + (e.baseB - e.baseA) * t);
-    const tops = g.t.map((t, i) => Math.max(bots[i], e.topA + (e.topB - e.topA) * t));
-    const d = prismData(g.poly, bots, tops);
+    const tops = [e.topA, e.topB, e.topB, e.topA].map((v, i) => Math.max(bots[i], v));
+    const sh = [e.iA, -e.iB, -e.iB, e.iA]; // pergeseran titik atas sepanjang dinding
+    const topPoly = g.poly.map((p, i) => ({ x: p.x + d.x * sh[i], y: p.y + d.y * sh[i] }));
+    const pd = prismData(g.poly, bots, tops, topPoly);
     const bg = new THREE.BufferGeometry();
-    bg.setAttribute('position', new THREE.BufferAttribute(d.positions, 3));
-    bg.setAttribute('uv', new THREE.BufferAttribute(d.uvs, 2));
-    bg.addGroup(0, d.planeVerts, 0);
-    bg.addGroup(d.planeVerts, d.sideVerts, 1);
+    bg.setAttribute('position', new THREE.BufferAttribute(pd.positions, 3));
+    bg.setAttribute('uv', new THREE.BufferAttribute(pd.uvs, 2));
+    bg.addGroup(0, pd.planeVerts, 0);
+    bg.addGroup(pd.planeVerts, pd.sideVerts, 1);
     bg.computeVertexNormals();
     const mesh = new THREE.Mesh(bg, isSel ? [matPlainSel, matBrickSel] : [matPlain, matBrick]);
     mesh.userData.id = w.id;
@@ -253,7 +294,7 @@ function rebuildScene() {
   for (const n of state.nodes) {
     const isSel = sel && sel.type === 'node' && sel.id === n.id;
     const m = makeMarker(isSel ? markerMats.sel : n.id === start ? markerMats.start : markerMats.normal);
-    m.position.set(n.x, (nodeElev.get(n.id) || 0) + 1.5, n.y);
+    m.position.set(n.x, elevOfNode(n.id) + 1.5, n.y);
     m.userData.id = n.id;
     markerGroup.add(m);
     markers.push(m);
@@ -283,24 +324,31 @@ function rebuildScene() {
     }
   }
 
-  const sw = selWall();
-  if (sw && mode === 'select') {
-    const e = elev.get(sw.id);
-    const A = nodeById(sw.a);
-    const B = nodeById(sw.b);
-    if (e && A && B) {
-      for (const [end, N, base, top, h] of [
-        ['a', A, e.baseA, e.topA, e.hA],
-        ['b', B, e.baseB, e.topB, e.hB],
-      ]) {
+  const showHandles = mode === 'select' || (mode === 'draw' && level === 'top');
+  if (showHandles) {
+    for (const w of state.walls) {
+      const g = geo.get(w.id);
+      const e = elev.get(w.id);
+      const A = nodeById(w.a);
+      const B = nodeById(w.b);
+      if (!g || !e || !A || !B) continue;
+      const d = g.dir;
+      const isSel = sel && sel.type === 'wall' && sel.id === w.id;
+      const ends = [
+        ['a', A, e.baseA, e.topA, e.hA, A.x + d.x * e.iA, A.y + d.y * e.iA],
+        ['b', B, e.baseB, e.topB, e.hB, B.x - d.x * e.iB, B.y - d.y * e.iB],
+      ];
+      for (const [end, N, base, top, h, px, py] of ends) {
         const m = makeMarker(markerMats.top);
-        m.position.set(N.x, top, N.y);
+        m.position.set(px, top, py);
         handleGroup.add(m);
-        topHandles.push({ end, m, wid: sw.id });
-        const lg = new THREE.BufferGeometry();
-        lg.setAttribute('position', new THREE.Float32BufferAttribute([N.x, base, N.y, N.x, top, N.y], 3));
-        handleGroup.add(new THREE.Line(lg, lineHandle));
-        addLabel(num(h), 'lbl hl', N.x, top, N.y, -16);
+        topHandles.push({ end, m, wid: w.id, px, py, top });
+        if (isSel) {
+          const lg = new THREE.BufferGeometry();
+          lg.setAttribute('position', new THREE.Float32BufferAttribute([N.x, base, N.y, px, top, py], 3));
+          handleGroup.add(new THREE.Line(lg, lineHandle));
+        }
+        addLabel(num(mode === 'draw' ? top : h), 'lbl hl', px, top, py, -16);
       }
     }
   }
@@ -384,11 +432,26 @@ function fitCamera(top) {
   requestRender();
 }
 
+/* putar kamera mengelilingi bangunan (sumbu tegak) */
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const orbitOff = new THREE.Vector3();
+function orbitAzimuth(phi) {
+  orbitOff.copy(camera.position).sub(controls.target).applyAxisAngle(Y_AXIS, phi);
+  camera.position.copy(controls.target).add(orbitOff);
+  camera.lookAt(controls.target);
+  controls.update();
+  requestRender();
+}
+
 /* ---------- Titik di lantai, tempel ke grid / titik / dinding ---------- */
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const gp = new THREE.Vector3();
+const wallPlane = new THREE.Plane();
+const tmpN = new THREE.Vector3();
+const tmpP = new THREE.Vector3();
+const tmpHit = new THREE.Vector3();
 
 function setRay(cx, cy) {
   const r = host.getBoundingClientRect();
@@ -409,14 +472,14 @@ const cmPerPx = (dist) => (2 * dist * Math.tan(THREE.MathUtils.degToRad(camera.f
 
 const SNAP_PX = 9; // jarak tempel ke titik/dinding lain (piksel layar)
 
-function snapPoint(p, exclude = null, useWalls = true) {
+function snapPoint(p, exclude = null, useWalls = true, atY = 0) {
   const g = cfg.grid;
   if (cfg.snap) {
     const tol = SNAP_PX * cmPerPx(p.dist);
     let best = null;
     let bd = tol;
     for (const n of state.nodes) {
-      if (n.id === exclude) continue;
+      if (n.id === exclude || Math.abs(elevOfNode(n.id) - atY) >= 1) continue;
       const d = Math.hypot(n.x - p.x, n.y - p.y);
       if (d < bd) {
         bd = d;
@@ -428,6 +491,8 @@ function snapPoint(p, exclude = null, useWalls = true) {
     if (useWalls) {
       bd = tol;
       for (const w of state.walls) {
+        const e = elev.get(w.id);
+        if (!e || Math.abs(e.baseA - atY) >= 1 || Math.abs(e.baseB - atY) >= 1) continue;
         const A = nodeById(w.a);
         const B = nodeById(w.b);
         const pr = projectOnSegment(p, A, B);
@@ -462,7 +527,7 @@ function pickNode(cx, cy) {
     const d = Math.hypot(p.x - (cx - r.left), p.y - (cy - r.top));
     if (d < bd) {
       bd = d;
-      best = m.userData.id;
+      best = { id: m.userData.id, d };
     }
   }
   return best;
@@ -478,7 +543,7 @@ function pickTop(cx, cy) {
     const d = Math.hypot(p.x - (cx - r.left), p.y - (cy - r.top));
     if (d < bd) {
       bd = d;
-      best = h;
+      best = { h, d };
     }
   }
   return best;
@@ -486,9 +551,14 @@ function pickTop(cx, cy) {
 
 /* ---------- Menggambar ---------- */
 function drawTap(cx, cy) {
-  const p = groundPoint(cx, cy);
+  if (level === 'top' && start == null) {
+    startOnTop(cx, cy);
+    return;
+  }
+  const atY = start != null ? drawY : 0;
+  const p = groundPoint(cx, cy, atY);
   if (!p) return;
-  const s = snapPoint(p);
+  const s = snapPoint(p, null, true, atY);
   hidePreview();
   commit(() => {
     const id = resolveNode(s);
@@ -496,12 +566,48 @@ function drawTap(cx, cy) {
       start = id;
       lastDir = null;
     } else if (id !== start) {
-      if (!wallBetween(start, id)) addWall(start, id);
+      if (!wallBetween(start, id)) addWall(start, id, drawOn);
       const a = nodeById(start);
       const b = nodeById(id);
       lastDir = Math.atan2(b.y - a.y, b.x - a.x);
       start = id;
     }
+  });
+}
+
+/* mulai menggambar dari puncak dinding (titik oranye atau permukaan atas) */
+function startOnTop(cx, cy) {
+  let wid = null;
+  let x;
+  let y;
+  let h;
+  const th = pickTop(cx, cy);
+  if (th) {
+    wid = th.h.wid;
+    x = th.h.px;
+    y = th.h.py;
+    h = th.h.top;
+  } else {
+    setRay(cx, cy);
+    const hit = ray.intersectObjects(wallMeshes, false).find((r) => r.face && Math.abs(r.face.normal.y) > 0.5);
+    if (!hit) return;
+    const g = cfg.grid;
+    wid = hit.object.userData.id;
+    x = Math.round(hit.point.x / g) * g;
+    y = Math.round(hit.point.z / g) * g;
+    h = hit.point.y;
+  }
+  const tol = SNAP_PX * cmPerPx(camera.position.distanceTo(tmpP.set(x, h, y)));
+  hidePreview();
+  commit(() => {
+    drawOn = wid;
+    drawY = h;
+    lastDir = null;
+    let id = null;
+    for (const n of state.nodes) {
+      if (Math.abs(elevOfNode(n.id) - h) < 1 && Math.hypot(n.x - x, n.y - y) < tol) id = n.id;
+    }
+    start = id != null ? id : addNode(x, y);
   });
 }
 
@@ -519,10 +625,10 @@ function addTyped() {
     const P = { x: round2(S.x + Math.cos(theta) * len), y: round2(S.y + Math.sin(theta) * len) };
     let id = null;
     for (const n of state.nodes) {
-      if (n.id !== start && Math.hypot(n.x - P.x, n.y - P.y) < 0.5) id = n.id;
+      if (n.id !== start && Math.abs(elevOfNode(n.id) - drawY) < 1 && Math.hypot(n.x - P.x, n.y - P.y) < 0.5) id = n.id;
     }
     if (id == null) id = addNode(P.x, P.y);
-    if (id !== start && !wallBetween(start, id)) addWall(start, id);
+    if (id !== start && !wallBetween(start, id)) addWall(start, id, drawOn);
     lastDir = theta;
     start = id;
   });
@@ -553,26 +659,28 @@ function hidePreview() {
 
 function updatePreview(e) {
   const a = start != null ? nodeById(start) : null;
-  const p = a ? groundPoint(e.clientX, e.clientY) : null;
+  const p = a ? groundPoint(e.clientX, e.clientY, drawY) : null;
   if (!p) {
     hidePreview();
     return;
   }
-  const s = snapPoint(p);
+  const s = snapPoint(p, null, true, drawY);
   const arr = previewGeo.attributes.position.array;
-  arr.set([a.x, 3, a.y, s.x, 3, s.y]);
+  arr.set([a.x, drawY + 3, a.y, s.x, drawY + 3, s.y]);
   previewGeo.attributes.position.needsUpdate = true;
   previewLine.visible = true;
   const len = Math.hypot(s.x - a.x, s.y - a.y);
   prev = {
-    mid: { x: (a.x + s.x) / 2, y: 20, z: (a.y + s.y) / 2 },
+    mid: { x: (a.x + s.x) / 2, y: drawY + 20, z: (a.y + s.y) / 2 },
     text: `${num(len)} cm · ${num(deg(Math.atan2(s.y - a.y, s.x - a.x)))}°`,
   };
   requestRender();
 }
 
-/* ---------- Gestur: ketuk, seret titik, tarik titik atas ---------- */
+/* ---------- Gestur: ketuk, seret titik, tarik titik atas, putar dua jari ---------- */
 const ptrs = new Set();
+const ptrPos = new Map();
+let lastTwist = null;
 let tapRec = null;
 let drag = null; // { type:'node', id } | { type:'top', wid, end, y0, h0, dist }
 let dragBefore = null;
@@ -606,26 +714,33 @@ host.addEventListener(
   'pointerdown',
   (e) => {
     ptrs.add(e.pointerId);
+    ptrPos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    lastTwist = null;
     if (ptrs.size === 1) {
       tapRec = { x: e.clientX, y: e.clientY, t: performance.now(), ok: true };
       if (mode === 'select') {
         const th = pickTop(e.clientX, e.clientY);
-        if (th) {
-          const w = wallById(th.wid);
+        const nd = pickNode(e.clientX, e.clientY);
+        const preferTop =
+          th &&
+          (!nd || th.d < nd.d - 5 || (Math.abs(th.d - nd.d) <= 5 && sel && sel.type === 'wall' && sel.id === th.h.wid));
+        if (preferTop) {
+          const w = wallById(th.h.wid);
+          sel = { type: 'wall', id: w.id };
           startDrag(e, {
             type: 'top',
-            wid: th.wid,
-            end: th.end,
+            wid: w.id,
+            end: th.h.end,
             y0: e.clientY,
-            h0: th.end === 'a' ? w.hA : w.hB,
-            dist: camera.position.distanceTo(th.m.position),
+            h0: th.h.end === 'a' ? w.hA : w.hB,
+            dist: camera.position.distanceTo(th.h.m.position),
           });
+          refresh();
           return;
         }
-        const id = pickNode(e.clientX, e.clientY);
-        if (id != null) {
-          sel = { type: 'node', id };
-          startDrag(e, { type: 'node', id });
+        if (nd) {
+          sel = { type: 'node', id: nd.id };
+          startDrag(e, { type: 'node', id: nd.id });
           refresh();
         }
       }
@@ -636,23 +751,85 @@ host.addEventListener(
   true
 );
 
+function dragTop(e) {
+  const w = wallById(drag.wid);
+  const g = w ? geo.get(w.id) : null;
+  const el = w ? elev.get(w.id) : null;
+  const A = w ? nodeById(w.a) : null;
+  if (!w || !g || !el || !A) return;
+  const L = g.length;
+  const d = g.dir;
+  const step = Math.max(cfg.grid, 1);
+  const tol = 12 * cmPerPx(drag.dist);
+  const isA = drag.end === 'a';
+  const baseAt = (s) => (L > 0 ? el.baseA + ((el.baseB - el.baseA) * s) / L : el.baseA);
+
+  // geser pada bidang tegak dinding: dapat posisi sepanjang dinding dan tinggi sekaligus
+  let s = isA ? el.iA : L - el.iB;
+  let y = isA ? el.topA : el.topB;
+  let inPlane = false;
+  setRay(e.clientX, e.clientY);
+  tmpN.set(-d.y, 0, d.x);
+  if (Math.abs(ray.ray.direction.dot(tmpN)) > 0.2) {
+    wallPlane.setFromNormalAndCoplanarPoint(tmpN, tmpP.set(A.x, 0, A.y));
+    if (ray.ray.intersectPlane(wallPlane, tmpHit)) {
+      s = (tmpHit.x - A.x) * d.x + (tmpHit.z - A.y) * d.y;
+      y = tmpHit.y;
+      inPlane = true;
+    }
+  }
+  if (!inPlane) y = baseAt(s) + drag.h0 + (drag.y0 - e.clientY) * cmPerPx(drag.dist);
+
+  // titik atas lain: menempel agar bisa bertemu di satu puncak
+  const sO = isA ? L - el.iB : el.iA;
+  const yO = isA ? el.topB : el.topA;
+  let snapped = false;
+  if (Math.abs(s - sO) < tol) {
+    s = sO;
+    snapped = true;
+    if (Math.abs(y - yO) < tol) y = yO;
+  }
+  if (!snapped) s = Math.round(s / step) * step;
+  let h = y - baseAt(s);
+  if (!(snapped && Math.abs(y - yO) < 1e-6)) h = Math.round(h / step) * step;
+  h = clamp(h, 0, 3000);
+
+  if (isA) {
+    w.iA = round2(clamp(s, 0, L - el.iB));
+    w.hA = round2(h);
+  } else {
+    w.iB = round2(clamp(L - s, 0, L - el.iA));
+    w.hB = round2(h);
+  }
+  scheduleRebuild();
+}
+
 host.addEventListener('pointermove', (e) => {
+  if (ptrPos.has(e.pointerId)) ptrPos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  // dua jari diputar searah: bangunan ikut berputar searah jari
+  if (!drag && ptrPos.size === 2) {
+    const [a, b] = [...ptrPos.values()];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    if (lastTwist != null) {
+      let dt = ang - lastTwist;
+      while (dt > Math.PI) dt -= 2 * Math.PI;
+      while (dt < -Math.PI) dt += 2 * Math.PI;
+      if (Math.abs(dt) > 0.002) orbitAzimuth(dt);
+    }
+    lastTwist = ang;
+  }
+
   if (drag) {
     if (drag.type === 'top') {
-      const w = wallById(drag.wid);
-      if (!w) return;
-      const step = Math.max(cfg.grid, 1);
-      let v = drag.h0 + (drag.y0 - e.clientY) * cmPerPx(drag.dist);
-      v = clamp(Math.round(v / step) * step, 0, 3000);
-      if (drag.end === 'a') w.hA = v;
-      else w.hB = v;
-      scheduleRebuild();
+      dragTop(e);
       return;
     }
     const n = nodeById(drag.id);
-    const p = n ? groundPoint(e.clientX, e.clientY, nodeElev.get(n.id) || 0) : null;
+    const at = n ? elevOfNode(n.id) : 0;
+    const p = n ? groundPoint(e.clientX, e.clientY, at) : null;
     if (!p) return;
-    const s = snapPoint(p, drag.id, false);
+    const s = snapPoint(p, drag.id, false, at);
     n.x = round2(s.x);
     n.y = round2(s.y);
     scheduleRebuild();
@@ -664,11 +841,10 @@ host.addEventListener('pointermove', (e) => {
 
 function onUp(e) {
   ptrs.delete(e.pointerId);
+  ptrPos.delete(e.pointerId);
+  lastTwist = null;
   if (drag) {
-    if (JSON.stringify(state) !== dragBefore) {
-      hist.push(dragBefore);
-      if (hist.length > 80) hist.shift();
-    }
+    if (JSON.stringify(state) !== dragBefore) pushHist(dragBefore);
     drag = null;
     controls.enabled = true;
     refresh();
@@ -688,9 +864,9 @@ function handleTap(cx, cy) {
     drawTap(cx, cy);
     return;
   }
-  const nid = pickNode(cx, cy);
-  if (nid != null) {
-    sel = { type: 'node', id: nid };
+  const nd = pickNode(cx, cy);
+  if (nd) {
+    sel = { type: 'node', id: nd.id };
   } else {
     setRay(cx, cy);
     const hits = ray.intersectObjects(wallMeshes, false);
@@ -715,11 +891,17 @@ function updateInfo() {
 function updateHint() {
   let t;
   if (mode === 'draw') {
-    t = start == null
-      ? 'Ketuk lantai untuk titik awal dinding. Satu jari memutar kamera, dua jari menggeser dan zoom.'
-      : 'Ketuk titik berikutnya, atau ketik panjang dan sudut lalu tekan Tambah dinding. Tekan Akhiri untuk berhenti.';
+    if (level === 'top') {
+      t = start == null
+        ? 'Ketuk titik oranye atau puncak dinding untuk mulai menggambar di atasnya.'
+        : 'Ketuk titik berikutnya (ketinggian sama), atau ketik panjang dan sudut. Tekan Akhiri untuk kembali ke lantai.';
+    } else {
+      t = start == null
+        ? 'Ketuk lantai untuk titik awal dinding. Satu jari memutar kamera, dua jari menggeser, zoom, dan memutar.'
+        : 'Ketuk titik berikutnya, atau ketik panjang dan sudut lalu tekan Tambah dinding. Tekan Akhiri untuk berhenti.';
+    }
   } else {
-    t = 'Ketuk dinding atau titik untuk mengubah ukurannya. Seret titik untuk memindahkan; tarik titik oranye untuk mengubah tinggi.';
+    t = 'Ketuk dinding atau titik untuk mengubah ukurannya. Seret titik biru untuk memindahkan, titik oranye untuk membentuk puncak dinding.';
   }
   $('hint').textContent = t;
 }
@@ -731,12 +913,17 @@ function updateCtx() {
   $('ctx-draw').hidden = !drawing;
   $('ctx-wall').hidden = drawing || !w;
   $('ctx-node').hidden = drawing || !n;
+  $('l-floor').classList.toggle('active', level === 'floor');
+  $('l-top').classList.toggle('active', level === 'top');
+  $('b-undo').disabled = hist.length === 0;
+  $('b-redo').disabled = redoStack.length === 0;
 
   if (drawing) {
     const s = start != null ? nodeById(start) : null;
-    let t = 'Ketuk lantai untuk memilih titik awal.';
+    let t = level === 'top' ? 'Ketuk titik oranye atau puncak dinding untuk memilih titik awal.' : 'Ketuk lantai untuk memilih titik awal.';
     if (s) {
       t = `Titik awal: ${num(s.x)}, ${num(s.y)} cm`;
+      if (drawOn != null) t += ` · ketinggian ${num(drawY)} cm`;
       if (lastDir != null) t += ` · dinding terakhir bersudut ${num(deg(lastDir))}°`;
     }
     $('d-status').textContent = t;
@@ -749,6 +936,8 @@ function updateCtx() {
     setVal('w-thick', w.t);
     setVal('w-hA', w.hA);
     setVal('w-hB', w.hB);
+    setVal('w-iA', e ? round2(e.iA) : 0);
+    setVal('w-iB', e ? round2(e.iB) : 0);
     let info = g ? `Sisi dalam setelah menyatu: ${num(g.innerLen)} cm` : '';
     if (e && w.on != null) info += ` · berdiri di atas dinding lain (dasar ${num(e.baseA)} / ${num(e.baseB)} cm)`;
     $('w-inner').textContent = info;
@@ -762,7 +951,7 @@ function updateCtx() {
 
 function refresh() {
   if (sel && ((sel.type === 'wall' && !wallById(sel.id)) || (sel.type === 'node' && !nodeById(sel.id)))) sel = null;
-  if (start != null && !nodeById(start)) start = null;
+  if (start != null && !nodeById(start)) resetChain();
   rebuildScene();
   updateInfo();
   updateHint();
@@ -773,8 +962,7 @@ function refresh() {
 
 function setMode(m) {
   mode = m;
-  start = null;
-  lastDir = null;
+  resetChain();
   sel = null;
   drag = null;
   hidePreview();
@@ -783,16 +971,25 @@ function setMode(m) {
   commit(() => {});
 }
 
+function setLevel(l) {
+  level = l;
+  resetChain();
+  hidePreview();
+  commit(() => {});
+}
+
 /* ---------- Tombol dan isian ---------- */
 $('m-draw').addEventListener('click', () => setMode('draw'));
 $('m-select').addEventListener('click', () => setMode('select'));
+$('l-floor').addEventListener('click', () => setLevel('floor'));
+$('l-top').addEventListener('click', () => setLevel('top'));
 $('b-top').addEventListener('click', () => fitCamera(true));
 $('b-fit').addEventListener('click', () => fitCamera(false));
 $('b-undo').addEventListener('click', undo);
+$('b-redo').addEventListener('click', redo);
 $('d-add').addEventListener('click', addTyped);
 $('d-end').addEventListener('click', () => {
-  start = null;
-  lastDir = null;
+  resetChain();
   hidePreview();
   commit(() => {});
 });
@@ -849,6 +1046,47 @@ onChange('w-hB', (v) => {
     w.hB = clamp(v, 0, 3000);
   });
 });
+onChange('w-iA', (v) => {
+  const w = selWall();
+  const g = w ? geo.get(w.id) : null;
+  if (!g) return refresh();
+  commit(() => {
+    w.iA = round2(clamp(v, 0, g.length));
+    w.iB = round2(Math.min(w.iB || 0, g.length - w.iA));
+  });
+});
+onChange('w-iB', (v) => {
+  const w = selWall();
+  const g = w ? geo.get(w.id) : null;
+  if (!g) return refresh();
+  commit(() => {
+    w.iB = round2(clamp(v, 0, g.length));
+    w.iA = round2(Math.min(w.iA || 0, g.length - w.iB));
+  });
+});
+$('w-tri').addEventListener('click', () => {
+  const w = selWall();
+  const g = w ? geo.get(w.id) : null;
+  if (!g) return;
+  commit(() => {
+    const hm = Math.max(w.hA, w.hB);
+    w.iA = round2(g.length / 2);
+    w.iB = round2(g.length - w.iA);
+    w.hA = hm;
+    w.hB = hm;
+  });
+});
+$('w-rect').addEventListener('click', () => {
+  const w = selWall();
+  if (!w) return;
+  commit(() => {
+    const hm = Math.max(w.hA, w.hB);
+    w.iA = 0;
+    w.iB = 0;
+    w.hA = hm;
+    w.hB = hm;
+  });
+});
 $('w-stack').addEventListener('click', stackOnSelected);
 $('w-unstack').addEventListener('click', () => {
   const w = selWall();
@@ -883,7 +1121,7 @@ $('n-del').addEventListener('click', () => {
     for (const x of state.walls) if (gone.has(x.on)) x.on = null;
     state.walls = state.walls.filter((x) => !gone.has(x.id));
     state.nodes = state.nodes.filter((x) => x.id !== n.id);
-    if (start === n.id) start = null;
+    if (start === n.id) resetChain();
     sel = null;
   });
 });
@@ -916,6 +1154,8 @@ $('s-apply').addEventListener('click', () => {
       w.t = cfg.defT;
       w.hA = cfg.defH;
       w.hB = cfg.defH;
+      w.iA = 0;
+      w.iB = 0;
     }
   });
 });
