@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#12263f" />
+    <title>Rencana Bangunan 3D</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>Rencana Bangunan 3D</h1>
+        <span id="info"></span>
+      </header>
+
+      <main>
+        <section id="view-plan" class="view active">
+          <canvas id="plan"></canvas>
+          <div id="hint"></div>
+        </section>
+        <section id="view-3d" class="view">
+          <div id="three"></div>
+          <div id="empty3d">Belum ada dinding. Gambar denah dulu di tab Denah.</div>
+        </section>
+      </main>
+
+      <div id="panel">
+        <div class="row">
+          <button id="btn-wall" class="tool active">Dinding</button>
+          <button id="btn-erase" class="tool">Hapus</button>
+          <button id="btn-finish">Akhiri</button>
+          <button id="btn-undo">Urungkan</button>
+          <button id="btn-fit">Pas</button>
+          <button id="btn-clear" class="danger">Kosongkan</button>
+        </div>
+        <div class="row settings">
+          <label>Tinggi dinding (m)
+            <input id="in-height" type="number" inputmode="decimal" min="1" max="20" step="0.1" />
+          </label>
+          <label>Tebal dinding (cm)
+            <input id="in-thick" type="number" inputmode="numeric" min="5" max="60" step="1" />
+          </label>
+        </div>
+      </div>
+
+      <nav>
+        <button id="tab-plan" class="tab active">Denah</button>
+        <button id="tab-3d" class="tab">Tampilan 3D</button>
+      </nav>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
