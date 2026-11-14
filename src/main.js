@@ -17,7 +17,7 @@ const vib = (ms) => {
 };
 
 /* ---------- Data (satuan cm) ---------- */
-const defaultCfg = () => ({ v: 3, defT: 15, defH: 200, newLen: 200, grid: 5, labels: true, snap: true });
+const defaultCfg = () => ({ v: 3, defT: 15, defH: 200, newLen: 200, cloneGap: 100, grid: 5, labels: true, snap: true });
 let state = { nodes: [], walls: [], next: 1 };
 let cfg = defaultCfg();
 const hist = [];
@@ -606,20 +606,19 @@ const pickTop = (cx, cy) => {
 };
 
 /* ---------- Tambah dinding ---------- */
-function setTurn(v) {
-  $('a-turn').value = v;
-  syncTurnButtons();
-}
+let turn = 90; // belok dinding baru: 0 lurus, 90 kanan, -90 kiri
 function syncTurnButtons() {
-  const v = parseFloat($('a-turn').value);
-  $('t-0').classList.toggle('active', v === 0 || !Number.isFinite(v));
-  $('t-r').classList.toggle('active', v === 90);
-  $('t-l').classList.toggle('active', v === -90);
+  $('t-0').classList.toggle('active', turn === 0);
+  $('t-r').classList.toggle('active', turn === 90);
+  $('t-l').classList.toggle('active', turn === -90);
+}
+function setTurn(v) {
+  turn = v;
+  syncTurnButtons();
 }
 
 function addWallNow() {
   const len = Math.max(10, cfg.newLen || 200);
-  const turn = ((parseFloat($('a-turn').value) || 0) * Math.PI) / 180;
   commit(() => {
     const w = selWall();
     let startId;
@@ -633,7 +632,8 @@ function addWallNow() {
       const useB = cntB <= cntA;
       const N = nodeById(useB ? w.b : w.a);
       const O = nodeById(useB ? w.a : w.b);
-      theta = Math.atan2(N.y - O.y, N.x - O.x) + turn;
+      const q = Math.PI / 2;
+      theta = Math.round(Math.atan2(N.y - O.y, N.x - O.x) / q) * q + (turn * Math.PI) / 180;
       startId = N.id;
       on = w.on;
       t = w.t;
@@ -642,7 +642,7 @@ function addWallNow() {
       camera.updateMatrixWorld();
       const r = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
       const base = Math.round(Math.atan2(r.z, r.x) / (Math.PI / 2)) * (Math.PI / 2);
-      theta = base + turn;
+      theta = base;
       const g = gridPt({ x: controls.target.x - (Math.cos(theta) * len) / 2, y: controls.target.z - (Math.sin(theta) * len) / 2 });
       startId = addNode(g.x, g.y);
     }
@@ -665,6 +665,30 @@ function addWallNow() {
   });
 }
 
+function cloneSelected() {
+  const w = selWall();
+  if (!w) return;
+  commit(() => {
+    const A = nodeById(w.a);
+    const B = nodeById(w.b);
+    const L = Math.hypot(B.x - A.x, B.y - A.y);
+    if (L < 1e-6) return;
+    const gap = cfg.cloneGap || 100;
+    const nx = (-(B.y - A.y) / L) * gap; // ke kanan arah gambar
+    const ny = ((B.x - A.x) / L) * gap;
+    const a2 = addNode(A.x + nx, A.y + ny);
+    const b2 = addNode(B.x + nx, B.y + ny);
+    const id = addWall(a2, b2, w.on);
+    const nw = wallById(id);
+    nw.t = w.t;
+    nw.hA = w.hA;
+    nw.hB = w.hB;
+    nw.iA = w.iA || 0;
+    nw.iB = w.iB || 0;
+    sel = { type: 'wall', id };
+  });
+}
+
 function stackOnSelected() {
   const w = selWall();
   if (!w) return;
@@ -680,6 +704,103 @@ function stackOnSelected() {
 }
 
 /* ---------- Gestur ---------- */
+/* ---- sudut selalu 90 derajat: dinding tetangga ikut memanjang/memendek ---- */
+function buildOrtho() {
+  const orig = new Map(state.nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
+  const axis = new Map();
+  const at = new Map();
+  for (const w of state.walls) {
+    const A = orig.get(w.a);
+    const B = orig.get(w.b);
+    if (!A || !B) continue;
+    const sameX = Math.abs(A.x - B.x) < 0.01;
+    const sameY = Math.abs(A.y - B.y) < 0.01;
+    axis.set(w.id, sameX && !sameY ? 'v' : sameY && !sameX ? 'h' : null);
+    for (const id of [w.a, w.b]) {
+      if (!at.has(id)) at.set(id, []);
+      at.get(id).push(w);
+    }
+  }
+  const byKey = new Map();
+  for (const [id, p] of orig) {
+    const k = `${round2(p.x)}|${round2(p.y)}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(id);
+  }
+  const coin = new Map();
+  for (const list of byKey.values()) for (const id of list) coin.set(id, list);
+  return { orig, axis, at, coin };
+}
+
+/* seeds: Map id -> {dx, dy}. Hasil: Map id -> {dx, dy} termasuk titik yang ikut bergeser */
+function spread(ctx, seeds) {
+  const out = new Map();
+  const q = [];
+  const give = (id, comp, v) => {
+    let d = out.get(id);
+    if (!d) {
+      d = { dx: 0, dy: 0, hx: false, hy: false };
+      out.set(id, d);
+    }
+    if (comp === 'x') {
+      if (d.hx) return;
+      d.hx = true;
+      d.dx = v;
+    } else {
+      if (d.hy) return;
+      d.hy = true;
+      d.dy = v;
+    }
+    q.push([id, comp, v]);
+    for (const o of ctx.coin.get(id) || []) if (o !== id) give(o, comp, v);
+  };
+  for (const [id, s0] of seeds) {
+    if (Math.abs(s0.dx) > 1e-9) give(id, 'x', s0.dx);
+    if (Math.abs(s0.dy) > 1e-9) give(id, 'y', s0.dy);
+  }
+  while (q.length) {
+    const [id, comp, v] = q.shift();
+    for (const w of ctx.at.get(id) || []) {
+      const ax = ctx.axis.get(w.id);
+      if ((comp === 'y' && ax === 'h') || (comp === 'x' && ax === 'v')) give(w.a === id ? w.b : w.a, comp, v);
+    }
+  }
+  return out;
+}
+
+function applySpread(ctx, out) {
+  for (const [id, o] of ctx.orig) {
+    const n = nodeById(id);
+    if (!n) continue;
+    const d = out.get(id);
+    n.x = round2(o.x + (d ? d.dx : 0));
+    n.y = round2(o.y + (d ? d.dy : 0));
+  }
+}
+
+function moveNodeOrtho(id, x, y) {
+  const n = nodeById(id);
+  if (!n) return;
+  const ctx = buildOrtho();
+  applySpread(ctx, spread(ctx, new Map([[id, { dx: x - n.x, dy: y - n.y }]])));
+}
+
+/* sumbu yang dikunci untuk titik yang hanya boleh bergeser searah dindingnya */
+function lockAxisFor(ctx, ids) {
+  const seen = new Set();
+  let ax = null;
+  for (const id of ids) {
+    for (const w of ctx.at.get(id) || []) {
+      if (seen.has(w.id)) continue;
+      seen.add(w.id);
+      const a = ctx.axis.get(w.id);
+      if (!a || (ax && ax !== a)) return null;
+      ax = a;
+    }
+  }
+  return ax; // 'h' = hanya geser kiri-kanan, 'v' = hanya geser atas-bawah
+}
+
 const HOLD_MS = 420; // tahan sebentar sebelum titik bisa diseret
 const MOVE_CANCEL = 10; // geser lebih dari ini sebelum siap = putar kamera
 const ptrs = new Set();
@@ -739,7 +860,8 @@ function arm() {
     const p = groundPoint(cur.x, cur.y, at);
     if (!p) return;
     const ids = groupOf(n.id);
-    d = { type: 'node', id: n.id, at, off: { x: n.x - p.x, y: n.y - p.y }, ids, orig: origOf(ids), excl: ids, exclW: wallsOf(new Set([n.id])) };
+    const ctx = buildOrtho();
+    d = { type: 'node', id: n.id, at, off: { x: n.x - p.x, y: n.y - p.y }, ids, orig: origOf(ids), excl: ids, exclW: wallsOf(new Set([n.id])), ctx, lock: lockAxisFor(ctx, ids) };
     sel = { type: 'node', id: n.id };
     armedKey = `n${n.id}`;
   } else if (pd.kind === 'top') {
@@ -762,7 +884,10 @@ function arm() {
     const p = groundPoint(cur.x, cur.y, pd.hitY);
     if (!p) return;
     const ids = new Set([...groupOf(w.a), ...groupOf(w.b)]);
-    d = { type: 'wall', wid: w.id, at, hitY: pd.hitY, p0: { x: p.x, y: p.y }, ids, orig: origOf(ids), a: w.a, b: w.b };
+    const ctx = buildOrtho();
+    const others = new Set();
+    for (const id of ids) for (const x of ctx.at.get(id) || []) if (x.id !== w.id) others.add(x.id);
+    d = { type: 'wall', wid: w.id, at, hitY: pd.hitY, p0: { x: p.x, y: p.y }, ids, orig: origOf(ids), a: w.a, b: w.b, ctx, lock: others.size ? ctx.axis.get(w.id) : null };
     armedKey = null;
   }
   drag = d;
@@ -881,28 +1006,25 @@ function dragNode(e) {
   if (!n) return;
   const p = groundPoint(e.clientX, e.clientY, drag.at);
   if (!p) return;
+  const o = drag.orig.get(drag.id);
   const raw = { x: p.x + drag.off.x, y: p.y + drag.off.y, dist: p.dist };
+  if (drag.lock === 'h') raw.y = o.y;
+  else if (drag.lock === 'v') raw.x = o.x;
   const s = magnetSnap(raw, drag.excl, drag.exclW, true, drag.at);
+  if (drag.lock === 'h') s.y = o.y;
+  else if (drag.lock === 'v') s.x = o.x;
   lastSnap = s;
   snapMark = s.node != null || s.wall != null ? { x: s.x, y: s.y, h: drag.at } : null;
-  const o = drag.orig.get(drag.id);
-  const dx = s.x - o.x;
-  const dy = s.y - o.y;
-  for (const [id, pos] of drag.orig) {
-    const m = nodeById(id);
-    if (m) {
-      m.x = round2(pos.x + dx);
-      m.y = round2(pos.y + dy);
-    }
-  }
+  applySpread(drag.ctx, spread(drag.ctx, new Map([[drag.id, { dx: s.x - o.x, dy: s.y - o.y }]])));
   scheduleRebuild();
 }
 
 function dragWall(e) {
   const p = groundPoint(e.clientX, e.clientY, drag.hitY);
   if (!p) return;
-  const dxr = p.x - drag.p0.x;
-  const dyr = p.y - drag.p0.y;
+  // dinding yang tersambung hanya bergeser tegak lurus dindingnya (tetangga ikut memanjang)
+  const dxr = drag.lock === 'h' ? 0 : p.x - drag.p0.x;
+  const dyr = drag.lock === 'v' ? 0 : p.y - drag.p0.y;
   const A0 = drag.orig.get(drag.a);
   const B0 = drag.orig.get(drag.b);
   let dx;
@@ -947,14 +1069,19 @@ function dragWall(e) {
     dx = g.x - A0.x;
     dy = g.y - A0.y;
   }
+  if (drag.lock === 'h') dx = 0;
+  if (drag.lock === 'v') dy = 0;
   snapMark = mark;
-  for (const [id, pos] of drag.orig) {
-    const m = nodeById(id);
-    if (m) {
-      m.x = round2(pos.x + dx);
-      m.y = round2(pos.y + dy);
-    }
-  }
+  applySpread(
+    drag.ctx,
+    spread(
+      drag.ctx,
+      new Map([
+        [drag.a, { dx, dy }],
+        [drag.b, { dx, dy }],
+      ])
+    )
+  );
   scheduleRebuild();
 }
 
@@ -1113,15 +1240,6 @@ function updateInfo() {
   $('info').textContent = n ? `${n} dinding · ${num(total)} cm` : 'Belum ada dinding';
 }
 
-function updateHint() {
-  let t;
-  if (locked) t = 'Titik terkunci: hanya kamera yang bergerak. Ketuk Kunci titik lagi untuk membuka.';
-  else if (!state.walls.length) t = 'Ketuk tombol Dinding untuk menaruh dinding pertama.';
-  else if (sel && sel.type === 'wall') t = 'Tahan titik atau dinding terpilih sampai bergetar, lalu seret. Ketuk Dinding untuk menyambung.';
-  else t = 'Ketuk sisi dinding untuk memilihnya. Tahan titik sebentar lalu seret untuk memindahkan.';
-  $('hint').textContent = t;
-}
-
 function updateCtx() {
   const w = selWall();
   const n = selNode();
@@ -1156,7 +1274,6 @@ function refresh() {
   if (sel && ((sel.type === 'wall' && !wallById(sel.id)) || (sel.type === 'node' && !nodeById(sel.id)))) sel = null;
   rebuildScene();
   updateInfo();
-  updateHint();
   updateCtx();
   save();
   requestRender();
@@ -1167,13 +1284,11 @@ $('b-wall').addEventListener('click', addWallNow);
 $('b-lock').addEventListener('click', () => {
   locked = !locked;
   cancelPending();
-  updateHint();
   updateCtx();
 });
 $('t-0').addEventListener('click', () => setTurn(0));
 $('t-r').addEventListener('click', () => setTurn(90));
 $('t-l').addEventListener('click', () => setTurn(-90));
-$('a-turn').addEventListener('input', syncTurnButtons);
 $('b-top').addEventListener('click', () => fitCamera(true));
 $('b-fit').addEventListener('click', () => fitCamera(false));
 $('b-undo').addEventListener('click', undo);
@@ -1219,8 +1334,7 @@ onChange('w-len', (v) => {
     const dy = B.y - A.y;
     const l = Math.hypot(dx, dy);
     if (l < 1e-6) return;
-    B.x = round2(A.x + (dx / l) * v);
-    B.y = round2(A.y + (dy / l) * v);
+    moveNodeOrtho(B.id, round2(A.x + (dx / l) * v), round2(A.y + (dy / l) * v));
   });
 });
 onChange('w-thick', (v) => {
@@ -1294,6 +1408,7 @@ $('w-rect').addEventListener('click', () => {
   });
 });
 $('w-stack').addEventListener('click', stackOnSelected);
+$('w-clone').addEventListener('click', cloneSelected);
 $('w-unstack').addEventListener('click', () => {
   const w = selWall();
   if (w) commit(() => (w.on = null));
@@ -1310,11 +1425,11 @@ $('w-del').addEventListener('click', () => {
 });
 onChange('n-x', (v) => {
   const n = selNode();
-  if (n) commit(() => (n.x = round2(v)));
+  if (n) commit(() => moveNodeOrtho(n.id, round2(v), n.y));
 });
 onChange('n-y', (v) => {
   const n = selNode();
-  if (n) commit(() => (n.y = round2(v)));
+  if (n) commit(() => moveNodeOrtho(n.id, n.x, round2(v)));
 });
 $('n-del').addEventListener('click', () => {
   const n = selNode();
@@ -1332,6 +1447,11 @@ $('n-del').addEventListener('click', () => {
 onChange('s-len', (v) => {
   cfg.newLen = clamp(v, 10, 5000);
   $('s-len').value = cfg.newLen;
+  save();
+});
+onChange('s-gap', (v) => {
+  cfg.cloneGap = clamp(v, 1, 5000);
+  $('s-gap').value = cfg.cloneGap;
   save();
 });
 onChange('s-thick', (v) => {
@@ -1444,6 +1564,7 @@ $('s-clear').addEventListener('click', () => {
 
 function applyCfgToInputs() {
   $('s-len').value = cfg.newLen;
+  $('s-gap').value = cfg.cloneGap;
   $('s-thick').value = cfg.defT;
   $('s-height').value = cfg.defH;
   $('s-grid').value = String(cfg.grid);
@@ -1453,6 +1574,7 @@ function applyCfgToInputs() {
 
 /* ---------- Mulai ---------- */
 loadData();
+syncTurnButtons();
 applyCfgToInputs();
 resize();
 fitCamera(false);

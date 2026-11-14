@@ -9,14 +9,16 @@ Aplikasi Android untuk merancang denah bangunan langsung di tampilan 3D. Semua u
 
 ## Memakai
 
-- Tombol **Dinding** menaruh dinding 200 x 200 cm (ubah di Pengaturan). Tanpa dinding terpilih, dinding pertama mengarah ke kanan layar. Dengan dinding terpilih, dinding baru menyambung di ujungnya. Arah diatur dengan **Lurus / Kanan 90 / Kiri 90** atau sudut belok sendiri.
+- Tombol **Dinding** menaruh dinding 200 x 200 cm (ubah di Pengaturan). Tanpa dinding terpilih, dinding pertama mengarah ke kanan layar. Dengan dinding terpilih, dinding baru menyambung di ujungnya. Arah dinding baru: **Lurus / Kanan 90 / Kiri 90** (bawaan Kanan 90, membentuk L). Semua sudut dinding selalu 90 derajat.
 - Ketuk **sisi dinding** untuk memilihnya, lalu ubah Panjang, Tebal, Tinggi. Ukuran hanya tampil di dinding yang dipilih. **Bentuk lanjutan** berisi tinggi tiap ujung, geser puncak, dan tombol segitiga/persegi.
 - **Tahan sebentar** titik biru (sudut), titik oranye (puncak), atau dinding terpilih sampai bergetar, baru bisa diseret. Menyeret dinding menggeser seluruh dinding bersama dinding yang tersambung. **Kunci titik** mematikan semua geseran titik.
 - **Magnet**: titik menempel sudut ke sudut (hijau) dan lepas dengan geseran kecil. Bisa dimatikan di Pengaturan. Dua titik oranye bisa disatukan menjadi puncak segitiga.
 - Titik yang tertutup dinding disembunyikan; putar kamera sampai terlihat.
+- Menyeret titik sudut membuat dinding tetangga ikut memanjang atau memendek agar sudut tetap siku. Ujung bebas hanya bergeser searah dindingnya, dan dinding yang tersambung hanya bergeser tegak lurus.
+- **Gandakan**: menyalin dinding (ukuran dan bentuk puncak) sejajar, bergeser ke kanan arah gambar sejauh Jarak salinan (bawaan 100 cm).
 - **Tambah dinding di atas**: dinding baru berdiri di puncak dinding terpilih, mengikuti bentuk puncaknya.
 - Satu jari memutar kamera. Dua jari: cubit untuk zoom, geser, atau putar (bangunan ikut searah jari). Jika satu jari diam, jari itu menjadi poros putaran.
-- **Urungkan** dan **Ulangi** ada di pojok kanan bawah peta, **?** untuk panduan, **Atas** dan **Pas** untuk pandangan kamera.
+- **Urungkan** dan **Ulangi** ada di pojok kanan bawah peta, **?** untuk panduan (tidak ada keterangan tetap di atas peta), **Atas** dan **Pas** untuk pandangan kamera.
 - Pengaturan: ukuran dinding baru, grid, cadangan ke file, contoh rumah kecil, hapus semua.
 
 ## Membuat APK

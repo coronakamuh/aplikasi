@@ -16,7 +16,6 @@
       <main>
         <div id="three"></div>
         <div id="labels"></div>
-        <div id="hint"></div>
         <div id="fab">
           <button id="b-help" class="round" aria-label="Bantuan" title="Bantuan">?</button>
           <span class="grow"></span>
@@ -37,17 +36,11 @@
         </div>
 
         <div id="ctx-add" class="ctx">
-          <div class="row fields">
-            <label>Arah dinding baru: belok (&deg;), + kanan, &minus; kiri
-              <input id="a-turn" type="number" inputmode="decimal" step="5" value="0" />
-            </label>
-          </div>
           <div class="row">
-            <button id="t-0" class="tool active">Lurus</button>
-            <button id="t-r" class="tool">Kanan 90&deg;</button>
+            <button id="t-0" class="tool">Lurus</button>
+            <button id="t-r" class="tool active">Kanan 90&deg;</button>
             <button id="t-l" class="tool">Kiri 90&deg;</button>
           </div>
-          <p class="note">Tanpa dinding terpilih, dinding pertama mengarah ke kanan layar. Dengan dinding terpilih, dinding baru menyambung di ujungnya.</p>
         </div>
 
         <div id="ctx-wall" class="ctx" hidden>
@@ -89,6 +82,7 @@
           <p id="w-inner" class="note"></p>
           <div class="row">
             <button id="w-stack" class="primary">Tambah dinding di atas</button>
+            <button id="w-clone">Gandakan</button>
             <button id="w-unstack" hidden>Lepas dari dinding bawah</button>
           </div>
           <div class="danger-zone">
@@ -121,6 +115,9 @@
             </label>
             <label>Tinggi dinding baru (cm)
               <input id="s-height" type="number" inputmode="decimal" min="10" max="3000" step="10" />
+            </label>
+            <label>Jarak salinan (cm)
+              <input id="s-gap" type="number" inputmode="decimal" min="1" step="10" />
             </label>
             <label>Grid tempel (cm)
               <select id="s-grid">
