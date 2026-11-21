@@ -1,6 +1,7 @@
 package com.macrondroit.app
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
 import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.KeyguardManager
@@ -10,6 +11,8 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Path
+import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
@@ -380,13 +383,14 @@ class ServisPesawat : AccessibilityService() {
     private fun coba(ke: Int, nyala: Boolean, layarMati: Boolean, terkunci: Boolean, wl: PowerManager.WakeLock) {
         handler.postDelayed({
             val simpul = temukan()
-            if (simpul != null) {
-                val berhasilKlik = klik(simpul)
+            if (simpul != null && (simpul.isVisibleToUser || ke >= 8)) {
+                val cara = klik(simpul)
+                val info = infoSimpul(simpul)
                 handler.postDelayed({
                     selesai(
                         nyala, layarMati, wl,
-                        if (berhasilKlik) "Tombol Mode pesawat sudah ditekan."
-                        else "Tombol ditemukan tetapi tidak bisa ditekan."
+                        if (cara != null) "Tombol Mode pesawat ditekan lewat $cara ($info)."
+                        else "Tombol ditemukan tetapi tidak bisa ditekan ($info)."
                     )
                 }, 1600)
             } else if (ke < 12) {
@@ -434,37 +438,67 @@ class ServisPesawat : AccessibilityService() {
             // abaikan
         }
         rootInActiveWindow?.let { akar.add(it) }
-        for (a in akar) {
-            val hasil = cari(a)
-            if (hasil != null) return hasil
-        }
-        return null
+        val cocok = mutableListOf<AccessibilityNodeInfo>()
+        for (a in akar) kumpulCocok(a, cocok)
+        return cocok.firstOrNull { it.isVisibleToUser && adaUkuran(it) } ?: cocok.firstOrNull()
     }
 
-    private fun cari(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    private fun kumpulCocok(n: AccessibilityNodeInfo, hasil: MutableList<AccessibilityNodeInfo>) {
         val teks = ((n.text?.toString() ?: "") + " " + (n.contentDescription?.toString() ?: "")).lowercase()
-        if (teks.contains("pesawat") || teks.contains("airplane") || teks.contains("flight mode")) return n
+        if (teks.contains("pesawat") || teks.contains("airplane") || teks.contains("flight mode")) hasil.add(n)
         for (i in 0 until n.childCount) {
             val anak = n.getChild(i) ?: continue
-            val hasil = cari(anak)
-            if (hasil != null) return hasil
+            kumpulCocok(anak, hasil)
         }
-        return null
     }
 
-    private fun klik(n: AccessibilityNodeInfo): Boolean {
+    private fun adaUkuran(n: AccessibilityNodeInfo): Boolean {
+        val r = Rect()
+        n.getBoundsInScreen(r)
+        return !r.isEmpty
+    }
+
+    private fun infoSimpul(n: AccessibilityNodeInfo): String {
+        val r = Rect()
+        n.getBoundsInScreen(r)
+        return "terlihat=${n.isVisibleToUser}, kotak=${r.flattenToString()}"
+    }
+
+    /** Mengembalikan nama cara yang berhasil, atau null bila semua cara gagal. */
+    private fun klik(n: AccessibilityNodeInfo): String? {
         var x: AccessibilityNodeInfo? = n
         while (x != null) {
-            if (x.isClickable && x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            if (x.isClickable && x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return "klik biasa"
             x = x.parent
         }
-        // cadangan: coba tekan induknya walau tidak ditandai bisa ditekan
+        // Cadangan: ketuk layar langsung di tengah tombol (seperti jari). Pilih wadah tombol
+        // yang cukup besar, bukan hanya tulisan kecilnya.
+        var sasaran: Rect? = null
         x = n
         while (x != null) {
-            if (x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            val r = Rect()
+            x.getBoundsInScreen(r)
+            if (!r.isEmpty && r.width() >= 120 && r.height() >= 120) {
+                sasaran = r
+                break
+            }
             x = x.parent
         }
-        return false
+        if (sasaran == null) {
+            val r = Rect()
+            n.getBoundsInScreen(r)
+            if (!r.isEmpty) sasaran = r
+        }
+        if (sasaran != null) {
+            val jalur = Path().apply { moveTo(sasaran.exactCenterX(), sasaran.exactCenterY()) }
+            val gerak = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(jalur, 0L, 80L))
+                .build()
+            if (dispatchGesture(gerak, null, null)) {
+                return "ketukan layar di (${sasaran.centerX()}, ${sasaran.centerY()})"
+            }
+        }
+        return null
     }
 
     private fun kumpulTeks(n: AccessibilityNodeInfo, hasil: MutableList<String>) {
