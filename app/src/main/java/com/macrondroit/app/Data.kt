@@ -102,7 +102,11 @@ private fun tambah(awal: ZonedDateTime, ulang: Int, n: Long): ZonedDateTime = wh
 }
 
 /** Kejadian pertama yang waktunya >= [sejak]; null jika sudah lewat dan tidak berulang. */
-fun kejadianBerikut(e: Entri, sejak: Long): Long? {
+fun kejadianBerikut(e: Entri, sejak: Long): Long? = berikutDari(e.waktu, e.ulang, sejak)
+
+/** Kejadian pertama >= [sejak] dari waktu awal [waktuAwal] dengan jenis ulangan [ulangJenis]. */
+fun berikutDari(waktuAwal: Long, ulangJenis: Int, sejak: Long): Long? {
+    val e = Entri(0, 0, "", "", waktuAwal, ulangJenis, 0, 0, true)
     if (e.waktu >= sejak) return e.waktu
     if (e.ulang == Ulang.TIDAK) return null
     val zona = ZoneId.systemDefault()
@@ -136,6 +140,8 @@ class Pusat(context: Context) {
 
     val entri = mutableStateListOf<Entri>().apply { addAll(gudang.baca()) }
 
+    val otomasi = PusatOtomasi(app)
+
     var bateraiAman by mutableStateOf(cekBaterai())
         private set
 
@@ -146,6 +152,7 @@ class Pusat(context: Context) {
 
     fun segarkan() {
         bateraiAman = cekBaterai()
+        otomasi.segarkan()
     }
 
     fun idBaru(): Int = gudang.idBaru()

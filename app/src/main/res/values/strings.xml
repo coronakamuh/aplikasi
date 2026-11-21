@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">Macrondroit v2.0</string>
+    <string name="app_name">Macrondroit v3.0</string>
+    <string name="deskripsi_servis">Dipakai Macrondroit hanya untuk menyalakan atau mematikan mode pesawat sesuai aturan yang kamu buat. Tidak membaca atau mengirim data apa pun.</string>
 </resources>

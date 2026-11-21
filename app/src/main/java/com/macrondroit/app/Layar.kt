@@ -115,8 +115,13 @@ fun AplikasiUtama(pusat: Pusat, temaId: String, onPilihTema: (String) -> Unit) {
     var formTerbuka by remember { mutableStateOf(false) }
     var formEntri by remember { mutableStateOf<Entri?>(null) }
     var formJenis by remember { mutableIntStateOf(Jenis.JADWAL) }
+    var formAturan by remember { mutableStateOf(false) }
+    var aturanEdit by remember { mutableStateOf<Aturan?>(null) }
 
-    BackHandler(enabled = formTerbuka) { formTerbuka = false }
+    BackHandler(enabled = formTerbuka || formAturan) {
+        formTerbuka = false
+        formAturan = false
+    }
 
     fun bukaForm(jenis: Int, entri: Entri?) {
         formJenis = jenis
@@ -149,12 +154,10 @@ fun AplikasiUtama(pusat: Pusat, temaId: String, onPilihTema: (String) -> Unit) {
                     when (Tab.values()[i]) {
                         Tab.JADWAL -> PanelDaftar(Jenis.JADWAL, pusat) { bukaForm(Jenis.JADWAL, it) }
                         Tab.PENGINGAT -> PanelDaftar(Jenis.PENGINGAT, pusat) { bukaForm(Jenis.PENGINGAT, it) }
-                        Tab.OTOMATIS -> PanelKosong(
-                            Tab.OTOMATIS.ikon,
-                            "Belum ada otomatisasi",
-                            "Atur aturan: jika waktunya tiba, maka senyapkan HP, mode pesawat, atau buka aplikasi.",
-                            "Hadir di tahap 3"
-                        )
+                        Tab.OTOMATIS -> PanelOtomatis(pusat) {
+                            aturanEdit = it
+                            formAturan = true
+                        }
                         Tab.TEMA -> PanelTema(temaId, onPilihTema)
                     }
                 }
@@ -168,7 +171,7 @@ fun AplikasiUtama(pusat: Pusat, temaId: String, onPilihTema: (String) -> Unit) {
 
             // Tombol + untuk membuat jadwal atau pengingat baru
             AnimatedVisibility(
-                visible = (tabAktif == 0 || tabAktif == 1) && !formTerbuka,
+                visible = tabAktif in 0..2 && !formTerbuka && !formAturan,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
@@ -177,7 +180,12 @@ fun AplikasiUtama(pusat: Pusat, temaId: String, onPilihTema: (String) -> Unit) {
                 exit = scaleOut() + fadeOut()
             ) {
                 TombolTambah {
-                    bukaForm(if (tabAktif == 0) Jenis.JADWAL else Jenis.PENGINGAT, null)
+                    if (tabAktif == 2) {
+                        aturanEdit = null
+                        formAturan = true
+                    } else {
+                        bukaForm(if (tabAktif == 0) Jenis.JADWAL else Jenis.PENGINGAT, null)
+                    }
                 }
             }
 
@@ -200,6 +208,27 @@ fun AplikasiUtama(pusat: Pusat, temaId: String, onPilihTema: (String) -> Unit) {
                         formTerbuka = false
                     },
                     onTutup = { formTerbuka = false }
+                )
+            }
+
+            // Formulir otomatisasi, meluncur dari bawah
+            AnimatedVisibility(
+                visible = formAturan,
+                enter = slideInVertically(tween(380)) { it / 3 } + fadeIn(tween(300)),
+                exit = slideOutVertically(tween(300)) { it / 3 } + fadeOut(tween(250))
+            ) {
+                FormAturan(
+                    awal = aturanEdit,
+                    idBaru = { pusat.idBaru() },
+                    onSimpan = {
+                        pusat.otomasi.simpan(it)
+                        formAturan = false
+                    },
+                    onHapus = {
+                        pusat.otomasi.hapus(it)
+                        formAturan = false
+                    },
+                    onTutup = { formAturan = false }
                 )
             }
         }

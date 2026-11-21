@@ -11,8 +11,8 @@ android {
         applicationId = "com.macrondroit.app"
         minSdk = 26
         targetSdk = 33
-        versionCode = 3
-        versionName = "2.0"
+        versionCode = 4
+        versionName = "3.0"
     }
 
     buildTypes {

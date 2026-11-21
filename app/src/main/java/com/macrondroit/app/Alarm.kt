@@ -55,6 +55,7 @@ object Penjadwal {
 
     fun jadwalkanSemua(c: Context) {
         Gudang(c).baca().forEach { jadwalkan(c, it) }
+        GudangAturan(c).baca().forEach { PenjadwalOtomatis.jadwalkan(c, it) }
     }
 }
 

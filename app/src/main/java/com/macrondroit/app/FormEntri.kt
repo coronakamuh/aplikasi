@@ -53,7 +53,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-private fun Label(teks: String) {
+internal fun Label(teks: String) {
     Text(
         text = teks,
         style = MaterialTheme.typography.labelLarge,
@@ -63,7 +63,7 @@ private fun Label(teks: String) {
 }
 
 @Composable
-private fun Pilihan(teks: String, terpilih: Boolean, onKlik: () -> Unit) {
+internal fun Pilihan(teks: String, terpilih: Boolean, onKlik: () -> Unit) {
     val utama = MaterialTheme.colorScheme.primary
     val latar by animateColorAsState(
         if (terpilih) utama else Slate.s100, tween(250), label = "latarPilihan"
@@ -84,7 +84,7 @@ private fun Pilihan(teks: String, terpilih: Boolean, onKlik: () -> Unit) {
 }
 
 @Composable
-private fun KotakWaktu(judul: String, nilai: String, onKlik: () -> Unit, modifier: Modifier = Modifier) {
+internal fun KotakWaktu(judul: String, nilai: String, onKlik: () -> Unit, modifier: Modifier = Modifier) {
     val utama = MaterialTheme.colorScheme.primary
     Column(
         modifier = modifier
