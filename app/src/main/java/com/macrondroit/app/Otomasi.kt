@@ -3,6 +3,7 @@ package com.macrondroit.app
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -13,6 +14,7 @@ import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -97,6 +99,19 @@ class GudangAturan(context: Context) {
     }
 }
 
+/** Catatan hasil aksi terakhir, supaya terlihat kenapa sebuah aksi berhasil atau gagal. */
+object Catatan {
+    private fun sp(c: Context) =
+        c.applicationContext.getSharedPreferences("macrondroit", Context.MODE_PRIVATE)
+
+    fun simpan(c: Context, pesan: String) {
+        val jam = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+        sp(c).edit().putString("catatan", "$jam · $pesan").apply()
+    }
+
+    fun baca(c: Context): String = sp(c).getString("catatan", "") ?: ""
+}
+
 /** Cek izin-izin khusus yang dibutuhkan otomatisasi. */
 object Izin {
     fun dnd(c: Context): Boolean =
@@ -126,6 +141,8 @@ class PusatOtomasi(context: Context) {
         private set
     var aksesAman by mutableStateOf(Izin.aksesibilitas(app))
         private set
+    var catatan by mutableStateOf(Catatan.baca(app))
+        private set
 
     fun segarkan() {
         aturan.clear()
@@ -133,6 +150,11 @@ class PusatOtomasi(context: Context) {
         dndAman = Izin.dnd(app)
         overlayAman = Izin.overlay(app)
         aksesAman = Izin.aksesibilitas(app)
+        catatan = Catatan.baca(app)
+    }
+
+    fun segarkanCatatan() {
+        catatan = Catatan.baca(app)
     }
 
     fun simpan(a: Aturan) {
@@ -218,7 +240,7 @@ fun kabarOtomasi(c: Context, id: Int, judul: String, teks: String, ketuk: Pendin
 object Pelaksana {
     fun jalankan(c: Context, a: Aturan): String {
         val ctx = c.applicationContext
-        return try {
+        val hasil = try {
             when (a.aksi) {
                 Aksi.SENYAP -> senyap(ctx)
                 Aksi.SUARA_NORMAL -> suaraNormal(ctx)
@@ -229,6 +251,8 @@ object Pelaksana {
         } catch (e: Exception) {
             "Gagal: ${e.message ?: "tidak diketahui"}"
         }
+        Catatan.simpan(ctx, Aksi.nama(a.aksi, a.namaApp) + " → " + hasil)
+        return hasil
     }
 
     private fun senyap(c: Context): String {
@@ -269,8 +293,8 @@ object Pelaksana {
             )
             return "Layanan aksesibilitas belum aktif, jadi mode pesawat tidak bisa diubah otomatis."
         }
-        servis.ubahPesawat()
-        return "Mengubah mode pesawat..."
+        servis.ubahPesawat(nyala)
+        return "Sedang menekan tombol Mode pesawat, hasilnya muncul di catatan."
     }
 
     private fun bukaApp(c: Context, a: Aturan): String {
@@ -326,24 +350,95 @@ class ServisPesawat : AccessibilityService() {
 
     override fun onInterrupt() {}
 
-    fun ubahPesawat() {
-        performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
-        coba(0)
+    /** Mengubah mode pesawat ke [nyala]. Layar dinyalakan dulu bila sedang mati. */
+    @Suppress("DEPRECATION")
+    fun ubahPesawat(nyala: Boolean) {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val layarMati = !pm.isInteractive
+        val wl = pm.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "macrondroit:pesawat"
+        )
+        wl.acquire(40_000L)
+
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val terkunci = km.isKeyguardLocked
+        if (terkunci) {
+            // Berhasil bila kunci layar hanya jenis geser. PIN atau pola tetap harus dibuka sendiri.
+            try {
+                startActivity(Intent(this, AktivitasBuka::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) {
+                // diabaikan, dicatat di hasil akhir bila tombol tidak ditemukan
+            }
+        }
+        handler.postDelayed({
+            performGlobalAction(GLOBAL_ACTION_QUICK_SETTINGS)
+            coba(0, nyala, layarMati, terkunci, wl)
+        }, if (terkunci) 2200L else 900L)
     }
 
-    private fun coba(ke: Int) {
+    private fun coba(ke: Int, nyala: Boolean, layarMati: Boolean, terkunci: Boolean, wl: PowerManager.WakeLock) {
         handler.postDelayed({
-            val akar = rootInActiveWindow
-            val simpul = if (akar != null) cari(akar) else null
+            val simpul = temukan()
             if (simpul != null) {
-                klik(simpul)
-                handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 900)
-            } else if (ke < 10) {
-                coba(ke + 1)
+                val berhasilKlik = klik(simpul)
+                handler.postDelayed({
+                    selesai(
+                        nyala, layarMati, wl,
+                        if (berhasilKlik) "Tombol Mode pesawat sudah ditekan."
+                        else "Tombol ditemukan tetapi tidak bisa ditekan."
+                    )
+                }, 1600)
+            } else if (ke < 12) {
+                coba(ke + 1, nyala, layarMati, terkunci, wl)
             } else {
-                performGlobalAction(GLOBAL_ACTION_BACK)
+                val contoh = mutableListOf<String>()
+                try {
+                    windows.forEach { w -> w.root?.let { kumpulTeks(it, contoh) } }
+                } catch (e: Exception) {
+                    // abaikan
+                }
+                val sebab = if (terkunci) "Layar terkunci, kemungkinan memakai PIN atau pola. " else ""
+                selesai(
+                    nyala, layarMati, wl,
+                    sebab + "Tombol Mode pesawat tidak ditemukan. Isi layar yang terbaca: " +
+                        (if (contoh.isEmpty()) "kosong" else contoh.joinToString(", "))
+                )
             }
-        }, if (ke == 0) 900L else 500L)
+        }, if (ke == 0) 1000L else 500L)
+    }
+
+    private fun selesai(nyala: Boolean, layarMati: Boolean, wl: PowerManager.WakeLock, pesan: String) {
+        val sekarang = Settings.Global.getInt(contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) == 1
+        val hasil = if (sekarang == nyala) {
+            "Berhasil, mode pesawat ${if (nyala) "menyala" else "mati"}."
+        } else {
+            "Belum berubah. $pesan"
+        }
+        Catatan.simpan(this, "Mode pesawat → $hasil")
+        if (sekarang != nyala) {
+            kabarOtomasi(this, 7_000_000, "Mode pesawat belum berubah", hasil, null)
+        }
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        handler.postDelayed({
+            if (layarMati && Build.VERSION.SDK_INT >= 28) performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            if (wl.isHeld) wl.release()
+        }, 1200)
+    }
+
+    private fun temukan(): AccessibilityNodeInfo? {
+        val akar = mutableListOf<AccessibilityNodeInfo>()
+        try {
+            windows.forEach { w -> w.root?.let { akar.add(it) } }
+        } catch (e: Exception) {
+            // abaikan
+        }
+        rootInActiveWindow?.let { akar.add(it) }
+        for (a in akar) {
+            val hasil = cari(a)
+            if (hasil != null) return hasil
+        }
+        return null
     }
 
     private fun cari(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -357,11 +452,28 @@ class ServisPesawat : AccessibilityService() {
         return null
     }
 
-    private fun klik(n: AccessibilityNodeInfo) {
+    private fun klik(n: AccessibilityNodeInfo): Boolean {
         var x: AccessibilityNodeInfo? = n
         while (x != null) {
-            if (x.isClickable && x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+            if (x.isClickable && x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
             x = x.parent
+        }
+        // cadangan: coba tekan induknya walau tidak ditandai bisa ditekan
+        x = n
+        while (x != null) {
+            if (x.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            x = x.parent
+        }
+        return false
+    }
+
+    private fun kumpulTeks(n: AccessibilityNodeInfo, hasil: MutableList<String>) {
+        if (hasil.size >= 14) return
+        val t = (n.text?.toString() ?: n.contentDescription?.toString() ?: "").trim()
+        if (t.isNotEmpty() && t !in hasil) hasil.add(t.take(30))
+        for (i in 0 until n.childCount) {
+            val anak = n.getChild(i) ?: continue
+            kumpulTeks(anak, hasil)
         }
     }
 }

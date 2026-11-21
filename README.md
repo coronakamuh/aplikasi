@@ -6,7 +6,7 @@ Aplikasi Android mandiri untuk jadwal, pengingat, dan otomatisasi, dengan tema b
 
 1. Kerangka, tema, tampilan utama (v1.0, dihaluskan di v1.1)
 2. Jadwal dan pengingat (v2.0)
-3. Otomatisasi (v3.0): senyap, suara normal, mode pesawat (layanan aksesibilitas), buka aplikasi
+3. Otomatisasi (v3.0, perbaikan mode pesawat v3.1): senyap, suara normal, mode pesawat (layanan aksesibilitas), buka aplikasi
 4. Cadangan ke file, panduan izin, penyempurnaan
 
 ## Membuat APK

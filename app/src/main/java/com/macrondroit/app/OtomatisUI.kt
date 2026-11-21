@@ -47,6 +47,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -95,6 +97,12 @@ private fun ulangTeks(u: Int): String = when (u) {
 fun PanelOtomatis(pusat: Pusat, onBuka: (Aturan) -> Unit) {
     val o = pusat.otomasi
     val konteks = LocalContext.current
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1500)
+            o.segarkanCatatan()
+        }
+    }
     val sekarang = System.currentTimeMillis()
     val baris = o.aturan
         .map { it to berikutDari(it.waktu, it.ulang, sekarang) }
@@ -131,6 +139,12 @@ fun PanelOtomatis(pusat: Pusat, onBuka: (Aturan) -> Unit) {
                     onAkses = { mulai(konteks, Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
                 )
             }
+        }
+        if (o.catatan.isNotBlank()) {
+            item(key = "catatan") { KartuCatatan(o.catatan) }
+        }
+        if (o.aturan.any { it.aksi == Aksi.PESAWAT_ON || it.aksi == Aksi.PESAWAT_OFF }) {
+            item(key = "tips") { KartuTips() }
         }
         if (baris.isEmpty()) {
             item(key = "kosong") {
@@ -729,6 +743,43 @@ fun FormAturan(
                 dialogApp = false
             },
             onTutup = { dialogApp = false }
+        )
+    }
+}
+
+@Composable
+private fun KartuCatatan(teks: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.White)
+            .padding(16.dp)
+    ) {
+        Text("Catatan terakhir", style = MaterialTheme.typography.labelLarge, color = Slate.s500)
+        Spacer(Modifier.height(4.dp))
+        Text(teks, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun KartuTips() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color(0xFFEAF4FF))
+            .padding(16.dp)
+    ) {
+        Text("Agar mode pesawat otomatis jalan", style = MaterialTheme.typography.titleMedium, color = Color(0xFF0B3D6B))
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "1. Kunci layar sebaiknya Geser atau Tidak ada. PIN atau pola menghalangi saat layar terkunci.\n" +
+                "2. Pengaturan > Baterai > Batas penggunaan di latar belakang: keluarkan Macrondroit dari Aplikasi tidur.\n" +
+                "3. Buka daftar aplikasi terbaru, ketuk ikon Macrondroit, pilih Biarkan terbuka.\n" +
+                "4. Setelah memasang versi baru, matikan lalu nyalakan lagi layanan aksesibilitas.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF0B3D6B)
         )
     }
 }
