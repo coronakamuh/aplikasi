@@ -4,7 +4,7 @@ Aplikasi Android mandiri untuk jadwal, pengingat, dan otomatisasi, dengan tema b
 
 ## Tahapan
 
-1. Kerangka, tema, tampilan utama (v1.0)
+1. Kerangka, tema, tampilan utama (v1.0, dihaluskan di v1.1)
 2. Jadwal dan pengingat
 3. Otomatisasi (senyap, mode pesawat lewat layanan aksesibilitas, buka aplikasi)
 4. Cadangan ke file, panduan izin, penyempurnaan

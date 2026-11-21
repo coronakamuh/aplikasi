@@ -1,18 +1,47 @@
 package com.macrondroit.app
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -24,13 +53,9 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,7 +64,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,53 +87,77 @@ private enum class Tab(val judul: String, val ikon: ImageVector) {
     TEMA("Tema", Icons.Rounded.Palette)
 }
 
+/** Efek tekan: mengecil sedikit lalu memantul kembali, tanpa riak kasar. */
+private fun Modifier.dapatDitekan(onClick: () -> Unit): Modifier = composed {
+    val sumber = remember { MutableInteractionSource() }
+    val ditekan by sumber.collectIsPressedAsState()
+    val skala by animateFloatAsState(
+        targetValue = if (ditekan) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "skala"
+    )
+    this
+        .scale(skala)
+        .clickable(interactionSource = sumber, indication = null, onClick = onClick)
+}
+
 @Composable
 fun AplikasiUtama(temaId: String, onPilihTema: (String) -> Unit) {
     var tabAktif by remember { mutableIntStateOf(0) }
-    val semuaTab = Tab.values()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                semuaTab.forEachIndexed { i, tab ->
-                    NavigationBarItem(
-                        selected = tabAktif == i,
-                        onClick = { tabAktif = i },
-                        icon = { Icon(tab.ikon, contentDescription = tab.judul) },
-                        label = { Text(tab.judul) }
-                    )
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Kepala()
+                AnimatedContent(
+                    targetState = tabAktif,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    transitionSpec = {
+                        val arah = if (targetState > initialState) 1 else -1
+                        (fadeIn(tween(300)) +
+                            slideInHorizontally(tween(350)) { (it * 0.12f).toInt() * arah }) togetherWith
+                            (fadeOut(tween(180)) +
+                                slideOutHorizontally(tween(350)) { -(it * 0.12f).toInt() * arah })
+                    },
+                    label = "tab"
+                ) { i ->
+                    when (Tab.values()[i]) {
+                        Tab.JADWAL -> PanelKosong(
+                            Tab.JADWAL.ikon,
+                            "Belum ada jadwal",
+                            "Di sini nanti kamu bisa membuat jadwal harian, mingguan, dan bulanan.",
+                            "Hadir di tahap 2"
+                        )
+                        Tab.PENGINGAT -> PanelKosong(
+                            Tab.PENGINGAT.ikon,
+                            "Belum ada pengingat",
+                            "Pilih notifikasi biasa atau alarm keras untuk setiap pengingat.",
+                            "Hadir di tahap 2"
+                        )
+                        Tab.OTOMATIS -> PanelKosong(
+                            Tab.OTOMATIS.ikon,
+                            "Belum ada otomatisasi",
+                            "Atur aturan: jika waktunya tiba, maka senyapkan HP, mode pesawat, atau buka aplikasi.",
+                            "Hadir di tahap 3"
+                        )
+                        Tab.TEMA -> PanelTema(temaId, onPilihTema)
+                    }
                 }
             }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            Kepala()
-            when (semuaTab[tabAktif]) {
-                Tab.JADWAL -> PanelKosong(
-                    Tab.JADWAL.ikon,
-                    "Belum ada jadwal",
-                    "Di sini nanti kamu bisa membuat jadwal harian, mingguan, dan bulanan.",
-                    "Hadir di tahap 2"
-                )
-                Tab.PENGINGAT -> PanelKosong(
-                    Tab.PENGINGAT.ikon,
-                    "Belum ada pengingat",
-                    "Pilih notifikasi biasa atau alarm keras untuk setiap pengingat.",
-                    "Hadir di tahap 2"
-                )
-                Tab.OTOMATIS -> PanelKosong(
-                    Tab.OTOMATIS.ikon,
-                    "Belum ada otomatisasi",
-                    "Atur aturan: jika waktunya tiba, maka senyapkan HP, mode pesawat, atau buka aplikasi.",
-                    "Hadir di tahap 3"
-                )
-                Tab.TEMA -> PanelTema(temaId, onPilihTema)
-            }
+            NavMengambang(
+                tabAktif = tabAktif,
+                onPilih = { tabAktif = it },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
@@ -115,74 +167,212 @@ private fun Kepala() {
     val tanggal = remember {
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale("id", "ID")))
     }
+    val utama = MaterialTheme.colorScheme.primary
+    val kedua = MaterialTheme.colorScheme.secondary
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-            .background(
-                Brush.horizontalGradient(
-                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
-                )
-            )
-            .padding(horizontal = 24.dp, vertical = 28.dp)
+            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+            .background(Brush.linearGradient(listOf(utama, kedua)))
+            .statusBarsPadding()
     ) {
-        Column {
+        // Lingkaran hiasan lembut
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 50.dp, y = (-30).dp)
+                .size(180.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.14f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-40).dp, y = 50.dp)
+                .size(130.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.10f))
+        )
+        Column(
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 30.dp)
+        ) {
+            Text(
+                text = tanggal,
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.22f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+            Spacer(Modifier.height(16.dp))
             Text(
                 text = stringResource(R.string.app_name),
                 color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.ExtraBold
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-0.5).sp
             )
-            Spacer(Modifier.height(4.dp))
-            Text(text = tanggal, color = Color.White.copy(alpha = 0.92f), fontSize = 15.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "Atur harimu dengan santai",
+                color = Color.White.copy(alpha = 0.92f),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavMengambang(tabAktif: Int, onPilih: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val bentuk = RoundedCornerShape(32.dp)
+    val utama = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 14.dp)
+            .fillMaxWidth()
+            .shadow(
+                elevation = 18.dp,
+                shape = bentuk,
+                ambientColor = utama.copy(alpha = 0.25f),
+                spotColor = utama.copy(alpha = 0.40f)
+            )
+            .clip(bentuk)
+            .background(Color.White)
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Tab.values().forEachIndexed { i, tab ->
+            ItemNav(tab, tabAktif == i) { onPilih(i) }
+        }
+    }
+}
+
+@Composable
+private fun ItemNav(tab: Tab, aktif: Boolean, onKlik: () -> Unit) {
+    val utama = MaterialTheme.colorScheme.primary
+    val latarItem by animateColorAsState(
+        if (aktif) utama.copy(alpha = 0.14f) else Color.Transparent,
+        tween(300),
+        label = "latarItem"
+    )
+    val warnaIkon by animateColorAsState(
+        if (aktif) utama else Slate.s400,
+        tween(300),
+        label = "warnaIkon"
+    )
+    Row(
+        modifier = Modifier
+            .dapatDitekan(onKlik)
+            .clip(RoundedCornerShape(24.dp))
+            .background(latarItem)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .animateContentSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = tab.ikon,
+            contentDescription = tab.judul,
+            tint = warnaIkon,
+            modifier = Modifier.size(24.dp)
+        )
+        AnimatedVisibility(
+            visible = aktif,
+            enter = fadeIn(tween(250)) + expandHorizontally(),
+            exit = fadeOut(tween(150)) + shrinkHorizontally()
+        ) {
+            Text(
+                text = tab.judul,
+                color = utama,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 8.dp)
+            )
         }
     }
 }
 
 @Composable
 private fun PanelKosong(ikon: ImageVector, judul: String, keterangan: String, tahap: String) {
+    val utama = MaterialTheme.colorScheme.primary
+    val kedua = MaterialTheme.colorScheme.secondary
+    val bentuk = RoundedCornerShape(28.dp)
+    val transisi = rememberInfiniteTransition(label = "napas")
+    val denyut by transisi.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "denyut"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+            .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 110.dp),
+        contentAlignment = Alignment.TopCenter
     ) {
-        Card(
-            shape = MaterialTheme.shapes.large,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 14.dp,
+                    shape = bentuk,
+                    ambientColor = utama.copy(alpha = 0.20f),
+                    spotColor = utama.copy(alpha = 0.30f)
+                )
+                .clip(bentuk)
+                .background(Color.White)
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(84.dp)
+                    .scale(denyut)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(utama.copy(alpha = 0.22f), kedua.copy(alpha = 0.30f))
+                        )
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        ikon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(judul, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text(keterangan, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    tahap,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+                Icon(
+                    imageVector = ikon,
+                    contentDescription = null,
+                    tint = utama,
+                    modifier = Modifier.size(40.dp)
                 )
             }
+            Spacer(Modifier.height(22.dp))
+            Text(
+                text = judul,
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = keterangan,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = tahap,
+                style = MaterialTheme.typography.labelLarge,
+                color = utama,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(utama.copy(alpha = 0.12f))
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            )
         }
     }
 }
@@ -191,25 +381,25 @@ private fun PanelKosong(ikon: ImageVector, judul: String, keterangan: String, ta
 private fun PanelTema(temaId: String, onPilih: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            "Pilih tema",
-            modifier = Modifier.padding(start = 24.dp, top = 20.dp, end = 24.dp),
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold
+            text = "Pilih tema",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp)
         )
         Text(
-            "Warna langsung berubah dan tersimpan di HP.",
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "Warna berubah mulus dan tersimpan di HP.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 24.dp, top = 2.dp, end = 24.dp)
         )
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 110.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            items(DaftarTema) { palet ->
-                KartuTema(palet, terpilih = palet.id == temaId, onPilih = { onPilih(palet.id) })
+            items(DaftarTema, key = { it.id }) { palet ->
+                KartuTema(palet, terpilih = palet.id == temaId) { onPilih(palet.id) }
             }
         }
     }
@@ -217,38 +407,92 @@ private fun PanelTema(temaId: String, onPilih: (String) -> Unit) {
 
 @Composable
 private fun KartuTema(palet: Palet, terpilih: Boolean, onPilih: () -> Unit) {
-    val bentuk = MaterialTheme.shapes.medium
-    Card(
+    val bentuk = RoundedCornerShape(22.dp)
+    val elevasi by animateDpAsState(if (terpilih) 14.dp else 3.dp, tween(300), label = "elevasi")
+    val tebal by animateDpAsState(if (terpilih) 2.5.dp else 1.dp, tween(300), label = "tebal")
+    val warnaGaris by animateColorAsState(
+        if (terpilih) palet.utama else Slate.s200,
+        tween(300),
+        label = "garis"
+    )
+
+    Column(
         modifier = Modifier
+            .dapatDitekan(onPilih)
+            .shadow(
+                elevation = elevasi,
+                shape = bentuk,
+                ambientColor = palet.utama.copy(alpha = 0.25f),
+                spotColor = palet.utama.copy(alpha = 0.35f)
+            )
             .clip(bentuk)
-            .clickable(onClick = onPilih),
-        shape = bentuk,
-        colors = CardDefaults.cardColors(containerColor = palet.latar),
-        border = if (terpilih) BorderStroke(3.dp, palet.utama) else BorderStroke(1.dp, Color(0x14000000)),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (terpilih) 6.dp else 1.dp)
+            .background(Color.White)
+            .border(tebal, warnaGaris, bentuk)
+            .padding(10.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        // Pratinjau mini tampilan tema
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(palet.latar)
+                .padding(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Brush.horizontalGradient(listOf(palet.utama, palet.kedua)))
+            )
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(8.dp)
+                    .clip(CircleShape)
+                    .background(Slate.s200)
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.55f)
+                    .height(8.dp)
+                    .clip(CircleShape)
+                    .background(Slate.s200)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = palet.nama,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            AnimatedVisibility(
+                visible = terpilih,
+                enter = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(22.dp)
                         .clip(CircleShape)
-                        .background(palet.utama)
-                )
-                Box(
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(palet.kedua)
-                )
-                Spacer(Modifier.weight(1f))
-                if (terpilih) {
-                    Icon(Icons.Rounded.Check, contentDescription = "Terpilih", tint = palet.utama)
+                        .background(palet.utama),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Terpilih",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Text(palet.nama, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF222222))
         }
     }
 }

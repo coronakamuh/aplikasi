@@ -1,13 +1,30 @@
 package com.macrondroit.app
 
 import android.content.Context
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+/** Abu-abu kebiruan lembut (seperti slate di Tailwind). */
+object Slate {
+    val s900 = Color(0xFF0F172A)
+    val s600 = Color(0xFF475569)
+    val s500 = Color(0xFF64748B)
+    val s400 = Color(0xFF94A3B8)
+    val s200 = Color(0xFFE2E8F0)
+    val s100 = Color(0xFFF1F5F9)
+}
 
 /** Satu paket warna tema. Semua tema cerah dan berwarna. */
 data class Palet(
@@ -30,26 +47,50 @@ val DaftarTema = listOf(
 
 @Composable
 fun MacroTema(palet: Palet, isi: @Composable () -> Unit) {
+    // Warna berpindah mulus saat tema diganti
+    val anim = tween<Color>(durationMillis = 450)
+    val utama by animateColorAsState(palet.utama, anim, label = "utama")
+    val kedua by animateColorAsState(palet.kedua, anim, label = "kedua")
+    val latar by animateColorAsState(palet.latar, anim, label = "latar")
+
     val skema = lightColorScheme(
-        primary = palet.utama,
+        primary = utama,
         onPrimary = palet.teksDiAtasUtama,
-        secondary = palet.kedua,
-        onSecondary = Color(0xFF2B2B2B),
-        background = palet.latar,
-        onBackground = Color(0xFF222222),
+        secondary = kedua,
+        onSecondary = Slate.s900,
+        background = latar,
+        onBackground = Slate.s900,
         surface = Color.White,
-        onSurface = Color(0xFF222222),
-        primaryContainer = palet.utama.copy(alpha = 0.15f),
-        onPrimaryContainer = Color(0xFF222222),
-        surfaceVariant = palet.kedua.copy(alpha = 0.2f),
-        onSurfaceVariant = Color(0xFF444444)
+        onSurface = Slate.s900,
+        primaryContainer = utama.copy(alpha = 0.14f),
+        onPrimaryContainer = Slate.s900,
+        surfaceVariant = Slate.s100,
+        onSurfaceVariant = Slate.s500,
+        outline = Slate.s200
+    )
+    val tipografi = Typography(
+        titleLarge = TextStyle(
+            fontSize = 22.sp, lineHeight = 28.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp
+        ),
+        titleMedium = TextStyle(
+            fontSize = 17.sp, lineHeight = 24.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp
+        ),
+        bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
+        labelLarge = TextStyle(
+            fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold
+        ),
+        labelMedium = TextStyle(
+            fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium
+        )
     )
     val bentuk = Shapes(
         small = RoundedCornerShape(16.dp),
-        medium = RoundedCornerShape(24.dp),
-        large = RoundedCornerShape(32.dp)
+        medium = RoundedCornerShape(22.dp),
+        large = RoundedCornerShape(28.dp)
     )
-    MaterialTheme(colorScheme = skema, shapes = bentuk, content = isi)
+    MaterialTheme(colorScheme = skema, typography = tipografi, shapes = bentuk, content = isi)
 }
 
 /** Menyimpan tema pilihan di HP (tanpa internet). */
